@@ -1,0 +1,71 @@
+<section class="vp-card business-table-card" aria-label="Listado de negocios">
+    <MudTable T="BusinessDto"
+              Items="@Items"
+              Hover="true"
+              Dense="true"
+              Breakpoint="Breakpoint.Sm"
+              Elevation="0"
+              RowsPerPage="10">
+        <HeaderContent>
+            <MudTh>NIT</MudTh>
+            <MudTh>Negocio</MudTh>
+            <MudTh>Dirección</MudTh>
+            <MudTh>Teléfono</MudTh>
+            <MudTh>Estado</MudTh>
+            <MudTh Class="business-actions-heading">Acciones</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="NIT"><strong>@context.Nit</strong></MudTd>
+            <MudTd DataLabel="Negocio">@context.Name</MudTd>
+            <MudTd DataLabel="Dirección">@context.Address</MudTd>
+            <MudTd DataLabel="Teléfono">@(string.IsNullOrWhiteSpace(context.Phone) ? "Sin teléfono" : context.Phone)</MudTd>
+            <MudTd DataLabel="Estado">
+                <MudChip T="string"
+                         Size="Size.Small"
+                         Variant="Variant.Outlined"
+                         Color="@(context.Status == "A" ? Color.Success : Color.Default)">
+                    @(context.Status == "A" ? "Activo" : "Inactivo")
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Acciones">
+                <div class="business-row-actions">
+                    <PermissionView Permission="negocios.consultar">
+                        <MudTooltip Text="Ver detalle">
+                            <MudIconButton Icon="@Icons.Material.Outlined.Visibility"
+                                           Size="Size.Small"
+                                           Color="Color.Primary"
+                                           OnClick="@(() => OnDetails.InvokeAsync(context))" />
+                        </MudTooltip>
+                    </PermissionView>
+                    <PermissionView Permission="negocios.actualizar">
+                        <MudTooltip Text="Editar">
+                            <MudIconButton Icon="@Icons.Material.Outlined.Edit"
+                                           Size="Size.Small"
+                                           Color="Color.Secondary"
+                                           OnClick="@(() => OnEdit.InvokeAsync(context))" />
+                        </MudTooltip>
+                    </PermissionView>
+                    <PermissionView Permission="negocios.eliminar">
+                        <MudTooltip Text="Desactivar">
+                            <MudIconButton Icon="@Icons.Material.Outlined.Block"
+                                           Size="Size.Small"
+                                           Color="Color.Error"
+                                           Disabled="@(context.Status != "A")"
+                                           OnClick="@(() => OnDelete.InvokeAsync(context))" />
+                        </MudTooltip>
+                    </PermissionView>
+                </div>
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="@(new[] { 10, 20, 50 })" RowsPerPageString="Filas por página" InfoFormat="{first_item}-{last_item} de {all_items}" />
+        </PagerContent>
+    </MudTable>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<BusinessDto> Items { get; set; } = Array.Empty<BusinessDto>();
+    [Parameter] public EventCallback<BusinessDto> OnDetails { get; set; }
+    [Parameter] public EventCallback<BusinessDto> OnEdit { get; set; }
+    [Parameter] public EventCallback<BusinessDto> OnDelete { get; set; }
+}

@@ -1,0 +1,23 @@
+/* VentasPro - Design tokens
+   Global CSS variables used across the POS frontend.
+*/
+:root {
+    --vp-primary: #3ebbd0;
+    --vp-primary-soft: #e5f8fb;
+    --vp-primary-deep: #167b8e;
+    --vp-secondary: #315ba8;
+    --vp-secondary-soft: #eaf0fb;
+    --vp-secondary-deep: #244985;
+    --vp-accent: #3d67b6;
+    --vp-accent-soft: #eaf0fb;
+    --vp-bg: #f3f6fc;
+    --vp-card: #ffffff;
+    --vp-border: #dde5f0;
+    --vp-text: #172033;
+    --vp-muted: #6d7c92;
+    --vp-success: #159f68;
+    --vp-warning: #e59a25;
+    --vp-danger: #dc4c64;
+    --vp-shadow: 0 10px 30px rgba(46, 68, 105, .08);
+    --vp-radius: 14px;
+}

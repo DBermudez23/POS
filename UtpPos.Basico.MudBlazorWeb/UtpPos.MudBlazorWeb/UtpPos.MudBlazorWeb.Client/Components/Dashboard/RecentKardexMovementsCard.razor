@@ -1,0 +1,38 @@
+<article class="vp-card vp-panel-card">
+    <header class="vp-panel-head">
+        <div>
+            <h3>Movimientos recientes</h3>
+            <p>Última actividad de kardex</p>
+        </div>
+        <a class="vp-panel-link" href="/inventario">Ver kardex</a>
+    </header>
+
+    @if (Items.Count == 0)
+    {
+        <div class="vp-inline-empty">No hay movimientos recientes de inventario.</div>
+    }
+    else
+    {
+        <div class="vp-alert-list">
+            @foreach (var movement in Items)
+            {
+                <div class="vp-alert-row">
+                    <span class="vp-alert-icon"><MudIcon Icon="@Icons.Material.Outlined.SyncAlt" Size="Size.Small" /></span>
+                    <span class="vp-alert-copy">
+                        <strong>@movement.ProductName</strong>
+                        <span>@movement.MovementType · @movement.Date.ToString("dd/MM/yyyy", ColombianCulture)</span>
+                    </span>
+                    <span class="vp-alert-stock">@FormatQuantity(movement.Quantity) u.</span>
+                </div>
+            }
+        </div>
+    }
+</article>
+
+@code {
+    private static readonly CultureInfo ColombianCulture = CultureInfo.GetCultureInfo("es-CO");
+
+    [Parameter] public IReadOnlyList<DashboardRecentKardexMovementItemDto> Items { get; set; } = Array.Empty<DashboardRecentKardexMovementItemDto>();
+
+    private static string FormatQuantity(decimal value) => value.ToString("N0", ColombianCulture);
+}

@@ -1,0 +1,45 @@
+<section class="vp-card vp-transaction-form-card">
+    <div class="vp-transaction-form-grid">
+        <MudSelect T="int?"
+                   Label="Negocio"
+                   Value="@BusinessId"
+                   ValueChanged="BusinessIdChanged"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Required="true"
+                   RequiredError="El negocio es obligatorio."
+                   Disabled="@(Saving || BusinessLocked)">
+            @foreach (var business in Businesses)
+            {
+                <MudSelectItem T="int?" Value="@((int?)business.Id)">@business.Name</MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudTextField T="string"
+                      Label="Tipo movimiento Kardex"
+                      Value="@MovementTypeLabel"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Disabled="true" />
+    </div>
+</section>
+
+@code {
+    [Parameter]
+    public IReadOnlyList<BusinessDto> Businesses { get; set; } = Array.Empty<BusinessDto>();
+
+    [Parameter]
+    public int? BusinessId { get; set; }
+
+    [Parameter]
+    public EventCallback<int?> BusinessIdChanged { get; set; }
+
+    [Parameter]
+    public string MovementTypeLabel { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool BusinessLocked { get; set; }
+
+    [Parameter]
+    public bool Saving { get; set; }
+}

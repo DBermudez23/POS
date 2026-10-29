@@ -1,0 +1,13 @@
+@page "/usuarios"
+@attribute [Authorize]
+
+<PageTitle>Usuarios | VentasPro</PageTitle>
+
+<main class="vp-page vp-users-page">
+    <PageHeader Kicker="Administracion"
+                Title="Usuarios y accesos"
+                Subtitle="Gestiona usuarios del sistema, roles RBAC, permisos tecnicos y asignaciones.">
+    </PageHeader>
+
+    <RbacManagementTabs />
+</main>

@@ -1,0 +1,268 @@
+@inject IRbacManagementService RbacManagementService
+@inject IAuthService AuthService
+@inject PermissionStateService PermissionState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<section class="vp-rbac-panel-stack">
+    <section class="vp-card vp-rbac-toolbar">
+        <div class="vp-rbac-toolbar__group vp-rbac-toolbar__group--wide">
+            <MudTextField T="string"
+                          Label="Permiso"
+                          @bind-Value="_filter.PermissionName"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Disabled="_loading" />
+
+            <MudTextField T="string"
+                          Label="Modulo"
+                          @bind-Value="_filter.ModuleCode"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Disabled="_loading" />
+
+            <MudTextField T="string"
+                          Label="Accion"
+                          @bind-Value="_filter.ActionCode"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Disabled="_loading" />
+        </div>
+
+        <div class="vp-rbac-toolbar__actions">
+            <MudButton Variant="Variant.Outlined" Disabled="_loading" OnClick="ClearFiltersAsync">
+                Limpiar
+            </MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_loading" OnClick="LoadAsync">
+                Buscar
+            </MudButton>
+        </div>
+    </section>
+
+    @if (_accessDenied)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+            No tienes permisos para consultar permisos tecnicos.
+        </MudAlert>
+    }
+    else if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+            @_errorMessage
+        </MudAlert>
+    }
+    else if (_loading)
+    {
+        <div class="vp-card vp-rbac-loading">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            <MudText Typo="Typo.body2" Class="vp-muted">Consultando catalogos RBAC...</MudText>
+        </div>
+    }
+    else
+    {
+        <section class="vp-rbac-stat-grid">
+            <div class="vp-card vp-rbac-stat-card">
+                <strong>@_modules.Count</strong>
+                <span>Modulos activos</span>
+            </div>
+            <div class="vp-card vp-rbac-stat-card">
+                <strong>@_actions.Count</strong>
+                <span>Acciones activas</span>
+            </div>
+            <div class="vp-card vp-rbac-stat-card">
+                <strong>@_permissions.Count</strong>
+                <span>Permisos encontrados</span>
+            </div>
+        </section>
+
+        <section class="vp-card vp-rbac-table-card">
+            <div class="vp-rbac-section-head">
+                <div>
+                    <h3>Permisos tecnicos</h3>
+                    <p>Combinaciones activas modulo.accion consumidas por RequirePermission.</p>
+                </div>
+            </div>
+
+            @if (_permissions.Count == 0)
+            {
+                <EmptyState Icon="@Icons.Material.Outlined.KeyOff"
+                            Title="No se encontraron permisos"
+                            Message="Crea nuevos permisos o ajusta los filtros actuales." />
+            }
+            else
+            {
+                <MudTable T="RbacPermissionDto" Items="@_permissions" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="0">
+                    <HeaderContent>
+                        <MudTh>Permiso</MudTh>
+                        <MudTh>Modulo</MudTh>
+                        <MudTh>Accion</MudTh>
+                        <MudTh>Estado</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Permiso">
+                            <div class="vp-rbac-user-cell">
+                                <strong>@context.PermissionName</strong>
+                                <span>@(string.IsNullOrWhiteSpace(context.Description) ? "Sin descripcion" : context.Description)</span>
+                            </div>
+                        </MudTd>
+                        <MudTd DataLabel="Modulo">@context.ModuleName</MudTd>
+                        <MudTd DataLabel="Accion">@context.ActionName</MudTd>
+                        <MudTd DataLabel="Estado">
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@(context.Status == "A" ? Color.Success : Color.Default)">
+                                @(context.Status == "A" ? "Activo" : "Inactivo")
+                            </MudChip>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+        </section>
+
+        <section class="vp-rbac-catalog-grid">
+            <section class="vp-card vp-rbac-catalog-card">
+                <div class="vp-rbac-section-head">
+                    <div>
+                        <h3>Modulos</h3>
+                        <p>Catalogo tecnico base.</p>
+                    </div>
+                </div>
+
+                <div class="vp-rbac-list">
+                    @foreach (var module in _modules)
+                    {
+                        <div class="vp-rbac-list-item">
+                            <strong>@module.Code</strong>
+                            <span>@module.Name</span>
+                        </div>
+                    }
+                </div>
+            </section>
+
+            <section class="vp-card vp-rbac-catalog-card">
+                <div class="vp-rbac-section-head">
+                    <div>
+                        <h3>Acciones</h3>
+                        <p>Operaciones tecnicas reutilizables.</p>
+                    </div>
+                </div>
+
+                <div class="vp-rbac-list">
+                    @foreach (var action in _actions)
+                    {
+                        <div class="vp-rbac-list-item">
+                            <strong>@action.Code</strong>
+                            <span>@action.Name</span>
+                        </div>
+                    }
+                </div>
+            </section>
+        </section>
+    }
+</section>
+
+@code {
+    private static readonly DialogOptions DialogOptions = new()
+    {
+        CloseButton = true,
+        FullWidth = true,
+        MaxWidth = MaxWidth.Small
+    };
+
+    private readonly RbacPermissionFilterDto _filter = new() { Status = "A" };
+    private IReadOnlyList<RbacModuleDto> _modules = Array.Empty<RbacModuleDto>();
+    private IReadOnlyList<RbacActionDto> _actions = Array.Empty<RbacActionDto>();
+    private IReadOnlyList<RbacPermissionDto> _permissions = Array.Empty<RbacPermissionDto>();
+    private bool _loading;
+    private bool _accessDenied;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await PermissionState.LoadAsync();
+        _accessDenied = !PermissionState.HasPermission("permisos.listar");
+        if (!_accessDenied)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        if (!PermissionState.HasPermission("permisos.listar"))
+        {
+            _accessDenied = true;
+            return;
+        }
+
+        _loading = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var modulesTask = RbacManagementService.ListModulesAsync();
+            var actionsTask = RbacManagementService.ListActionsAsync();
+            var permissionsTask = RbacManagementService.ListPermissionsAsync(_filter);
+
+            await Task.WhenAll(modulesTask, actionsTask, permissionsTask);
+
+            var modulesResponse = await modulesTask;
+            var actionsResponse = await actionsTask;
+            var permissionsResponse = await permissionsTask;
+
+            if (!modulesResponse.IsSuccess)
+            {
+                await HandleFailureAsync(modulesResponse.Message);
+                return;
+            }
+
+            if (!actionsResponse.IsSuccess)
+            {
+                await HandleFailureAsync(actionsResponse.Message);
+                return;
+            }
+
+            if (!permissionsResponse.IsSuccess)
+            {
+                await HandleFailureAsync(permissionsResponse.Message);
+                return;
+            }
+
+            _modules = modulesResponse.Data ?? Array.Empty<RbacModuleDto>();
+            _actions = actionsResponse.Data ?? Array.Empty<RbacActionDto>();
+            _permissions = permissionsResponse.Data ?? Array.Empty<RbacPermissionDto>();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        _filter.PermissionName = null;
+        _filter.ModuleCode = null;
+        _filter.ActionCode = null;
+        _filter.Status = "A";
+        await LoadAsync();
+    }
+
+    private async Task HandleFailureAsync(string? message)
+    {
+        var resolvedMessage = string.IsNullOrWhiteSpace(message)
+            ? "No fue posible completar la operacion."
+            : message;
+
+        if (resolvedMessage.StartsWith("Sesion expirada", StringComparison.OrdinalIgnoreCase)
+            || resolvedMessage.StartsWith("No hay una sesion activa", StringComparison.OrdinalIgnoreCase)
+            || resolvedMessage.StartsWith("Sesi", StringComparison.OrdinalIgnoreCase))
+        {
+            await AuthService.LogoutAsync();
+            Snackbar.Add("Tu sesion termino. Inicia sesion nuevamente.", Severity.Warning);
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        _errorMessage = resolvedMessage;
+        Snackbar.Add(resolvedMessage, Severity.Error);
+    }
+}

@@ -1,0 +1,326 @@
+@implements IDisposable
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IProductService ProductService
+@inject IThirdPartyService ThirdPartyService
+@inject ISaleService SaleService
+@inject PermissionStateService PermissionState
+@inject NavigationManager NavigationManager
+@inject ISnackbar Snackbar
+
+<MudAppBar Fixed="true" Elevation="0" Class="vp-topbar">
+    <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@OnMenuClick" />
+
+    <div class="vp-topbar-title ml-2">
+        <strong>@PageInfo.Title</strong>
+        <span>@PageInfo.Subtitle</span>
+    </div>
+
+    <div class="vp-topbar-search">
+        <div class="vp-topbar-search-shell">
+            <SearchBox Value="_search"
+                       ValueChanged="OnSearchTextChanged"
+                       OnKeyDown="HandleSearchKeyDown"
+                       Placeholder="Buscar productos, terceros o venta #ID..." />
+            <MudIconButton Class="vp-topbar-search-action"
+                           Icon="@Icons.Material.Outlined.ArrowForward"
+                           Size="Size.Small"
+                           Disabled="_searching"
+                           OnClick="RunSearchAsync" />
+
+            @if (_showSearchPanel)
+            {
+                <div class="vp-topbar-search-panel">
+                    @if (_searching)
+                    {
+                        <div class="vp-topbar-search-state">
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
+                            <span>Buscando...</span>
+                        </div>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(_searchMessage))
+                    {
+                        <div class="vp-topbar-search-state">@_searchMessage</div>
+                    }
+                    else
+                    {
+                        @foreach (var result in _searchResults)
+                        {
+                            <button type="button" class="vp-topbar-search-result" @onclick="() => NavigateToResult(result)">
+                                <span class="vp-topbar-search-result-icon"><MudIcon Icon="@result.Icon" Size="Size.Small" /></span>
+                                <span class="vp-topbar-search-result-copy">
+                                    <strong>@result.Title</strong>
+                                    <small>@result.Subtitle</small>
+                                </span>
+                                <span class="vp-topbar-search-result-type">@result.Type</span>
+                            </button>
+                        }
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <MudButton Class="vp-new-sale"
+               Variant="Variant.Filled"
+               StartIcon="@Icons.Material.Filled.AddShoppingCart"
+               Disabled="@(!CanCreateSale)"
+               Href="/ventas/nueva">
+        <span>Nueva venta</span>
+    </MudButton>
+
+    <MudIconButton Class="vp-notification ml-2" Icon="@Icons.Material.Outlined.Notifications" Color="Color.Inherit" />
+    <MudTooltip Text="Cambiar tema">
+        <MudIconButton Icon="@(IsDarkMode ? Icons.Material.Outlined.LightMode : Icons.Material.Outlined.DarkMode)"
+                       Color="Color.Inherit"
+                       OnClick="@OnThemeToggle" />
+    </MudTooltip>
+
+    <AuthorizeView>
+        <Authorized Context="authenticationState">
+            <UserMenu User="@authenticationState.User" OnLogout="@OnLogout" />
+        </Authorized>
+    </AuthorizeView>
+</MudAppBar>
+
+@code {
+    [Parameter] public EventCallback OnMenuClick { get; set; }
+    [Parameter] public EventCallback OnLogout { get; set; }
+    [Parameter] public EventCallback OnThemeToggle { get; set; }
+    [Parameter] public bool IsDarkMode { get; set; }
+
+    private string? _search;
+    private bool _searching;
+    private bool _showSearchPanel;
+    private string _searchMessage = string.Empty;
+    private int? _userBusinessId;
+    private IReadOnlyList<TopBarSearchResult> _searchResults = Array.Empty<TopBarSearchResult>();
+
+    private (string Title, string Subtitle) PageInfo => GetPageInfo();
+
+    private bool CanCreateSale => PermissionState.HasPermission("ventas.crear");
+
+    protected override async Task OnInitializedAsync()
+    {
+        NavigationManager.LocationChanged += HandleLocationChanged;
+        PermissionState.OnChange += HandlePermissionChange;
+
+        await PermissionState.LoadAsync();
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _userBusinessId = int.TryParse(authState.User.FindFirst("usr_neg_id")?.Value, out var businessId) && businessId > 0
+            ? businessId
+            : null;
+    }
+
+    private (string Title, string Subtitle) GetPageInfo()
+    {
+        var route = NavigationManager.ToBaseRelativePath(NavigationManager.Uri)
+            .Split('?', '#')[0]
+            .Trim('/');
+
+        return route.ToLowerInvariant() switch
+        {
+            "kardex" => ("Kardex / Inventario", "Trazabilidad de movimientos"),
+            "ventas" => ("Ventas", "Consulta y registro de ventas"),
+            "ventas/nueva" => ("Nueva venta", "Operación POS"),
+            "productos" => ("Productos", "Catálogo e inventario"),
+            "terceros" => ("Terceros", "Clientes y proveedores"),
+            "negocios" => ("Negocios", "Administración comercial"),
+            _ => ("Panel de Control", "Resumen de la operación")
+        };
+    }
+
+    private Task OnSearchTextChanged(string value)
+    {
+        _search = value;
+
+        if (string.IsNullOrWhiteSpace(_search))
+        {
+            CloseSearchPanel();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleSearchKeyDown(KeyboardEventArgs args)
+    {
+        if (string.Equals(args.Key, "Enter", StringComparison.OrdinalIgnoreCase))
+        {
+            await RunSearchAsync();
+        }
+        else if (string.Equals(args.Key, "Escape", StringComparison.OrdinalIgnoreCase))
+        {
+            CloseSearchPanel();
+        }
+    }
+
+    private async Task RunSearchAsync()
+    {
+        var term = _search?.Trim();
+        if (string.IsNullOrWhiteSpace(term) || term.Length < 2)
+        {
+            _searchResults = Array.Empty<TopBarSearchResult>();
+            _searchMessage = "Escribe al menos 2 caracteres para buscar.";
+            _showSearchPanel = true;
+            return;
+        }
+
+        _searching = true;
+        _showSearchPanel = true;
+        _searchMessage = string.Empty;
+        _searchResults = Array.Empty<TopBarSearchResult>();
+
+        try
+        {
+            await PermissionState.LoadAsync();
+
+            var results = new List<TopBarSearchResult>();
+            await SearchProductsAsync(term, results);
+            await SearchThirdPartiesAsync(term, results);
+            await SearchSaleByIdAsync(term, results);
+
+            _searchResults = results.Take(8).ToArray();
+            _searchMessage = _searchResults.Count == 0
+                ? "No encontramos resultados con los permisos actuales."
+                : string.Empty;
+        }
+        catch (Exception exception)
+        {
+            _searchResults = Array.Empty<TopBarSearchResult>();
+            _searchMessage = "No fue posible completar la búsqueda.";
+            Snackbar.Add(exception.Message, Severity.Error);
+        }
+        finally
+        {
+            _searching = false;
+        }
+    }
+
+    private async Task SearchProductsAsync(string term, ICollection<TopBarSearchResult> results)
+    {
+        if (!PermissionState.HasPermission("productos.listar"))
+            return;
+
+        var response = await ProductService.ListAsync(new ProductListFilterDto
+        {
+            Name = term,
+            Status = "A"
+        });
+
+        if (!response.IsSuccess || response.Data is null)
+            return;
+
+        foreach (var product in response.Data.Take(3))
+        {
+            results.Add(new TopBarSearchResult(
+                "Producto",
+                product.Name,
+                string.IsNullOrWhiteSpace(product.ExternalId) ? $"Producto #{product.Id}" : product.ExternalId,
+                Icons.Material.Outlined.Inventory2,
+                "/productos"));
+        }
+    }
+
+    private async Task SearchThirdPartiesAsync(string term, ICollection<TopBarSearchResult> results)
+    {
+        if (PermissionState.HasPermission("terceros-global.listar"))
+        {
+            var globalResponse = await ThirdPartyService.ListAsync(new ThirdPartyListFilterDto
+            {
+                Name = term,
+                Status = "A"
+            });
+
+            if (globalResponse.IsSuccess && globalResponse.Data is not null)
+            {
+                foreach (var thirdParty in globalResponse.Data.Take(3))
+                {
+                    results.Add(new TopBarSearchResult(
+                        "Tercero",
+                        thirdParty.Name,
+                        string.IsNullOrWhiteSpace(thirdParty.DocumentNumber) ? $"Tercero #{thirdParty.Id}" : thirdParty.DocumentNumber,
+                        Icons.Material.Outlined.Groups,
+                        $"/terceros/{thirdParty.Id}"));
+                }
+            }
+
+            return;
+        }
+
+        if (!_userBusinessId.HasValue || !PermissionState.HasPermission("terceros.listar"))
+            return;
+
+        var businessResponse = await ThirdPartyService.ListByBusinessAsync(_userBusinessId.Value, new ThirdPartyBusinessListFilterDto
+        {
+            Name = term,
+            Status = "A"
+        });
+
+        if (!businessResponse.IsSuccess || businessResponse.Data is null)
+            return;
+
+        foreach (var thirdParty in businessResponse.Data.Take(3))
+        {
+            results.Add(new TopBarSearchResult(
+                "Tercero",
+                thirdParty.Name,
+                string.IsNullOrWhiteSpace(thirdParty.DocumentNumber) ? $"Tercero #{thirdParty.Id}" : thirdParty.DocumentNumber,
+                Icons.Material.Outlined.Groups,
+                $"/terceros/{thirdParty.Id}"));
+        }
+    }
+
+    private async Task SearchSaleByIdAsync(string term, ICollection<TopBarSearchResult> results)
+    {
+        if (!PermissionState.HasPermission("ventas.consultar") || !int.TryParse(term, out var saleId) || saleId <= 0)
+            return;
+
+        var response = await SaleService.GetByIdAsync(saleId);
+        if (!response.IsSuccess || response.Data is null)
+            return;
+
+        results.Add(new TopBarSearchResult(
+            "Venta",
+            $"Venta #{response.Data.Id}",
+            response.Data.ThirdPartyName,
+            Icons.Material.Outlined.ReceiptLong,
+            $"/ventas/{response.Data.Id}"));
+    }
+
+    private void NavigateToResult(TopBarSearchResult result)
+    {
+        CloseSearchPanel();
+        NavigationManager.NavigateTo(result.Href);
+    }
+
+    private void CloseSearchPanel()
+    {
+        _showSearchPanel = false;
+        _searchMessage = string.Empty;
+        _searchResults = Array.Empty<TopBarSearchResult>();
+    }
+
+    private void HandleLocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        CloseSearchPanel();
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void HandlePermissionChange()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= HandleLocationChanged;
+        PermissionState.OnChange -= HandlePermissionChange;
+    }
+
+    private sealed record TopBarSearchResult(
+        string Type,
+        string Title,
+        string Subtitle,
+        string Icon,
+        string Href);
+}

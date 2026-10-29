@@ -1,0 +1,339 @@
+@page "/compras/{Id:int}"
+@attribute [Authorize]
+@inject IPurchaseService PurchaseService
+@inject IParameterService ParameterService
+@inject IAuthService AuthService
+@inject PermissionStateService PermissionState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<PageTitle>Detalle compra | VentasPro</PageTitle>
+
+<main class="vp-page vp-transaction-page">
+    <PageHeader Kicker="Compras"
+                Title="Detalle de compra"
+                Subtitle="Consulta encabezado, productos y pagos de la compra.">
+        <Action>
+            <div class="vp-transaction-header-actions">
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Default"
+                           StartIcon="@Icons.Material.Outlined.ArrowBack"
+                           OnClick="GoBack">
+                    Volver
+                </MudButton>
+                @if (_canCancel && _purchase is not null && IsActive(_purchase.Status))
+                {
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Error"
+                               Disabled="_canceling"
+                               StartIcon="@Icons.Material.Outlined.Block"
+                               OnClick="CancelPurchaseAsync">
+                        Anular compra
+                    </MudButton>
+                }
+            </div>
+        </Action>
+    </PageHeader>
+
+    @if (_accessDenied)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+            No tienes permisos para consultar compras.
+        </MudAlert>
+    }
+    else if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+            @_errorMessage
+        </MudAlert>
+    }
+    else if (_loading)
+    {
+        <div class="vp-card vp-transaction-loading">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            <MudText Typo="Typo.body2" Class="vp-muted">Consultando compra...</MudText>
+        </div>
+    }
+    else if (_purchase is null)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.ReceiptLong"
+                    Title="Compra no encontrada"
+                    Message="La compra solicitada no existe o no está disponible." />
+    }
+    else
+    {
+        <section class="vp-metric-grid vp-transaction-metrics">
+            <MetricCard Label="Subtotal" Value="@FormatMoney(_purchase.Subtotal)" Icon="@Icons.Material.Outlined.Calculate" Helper="Antes de IVA" />
+            <MetricCard Label="IVA" Value="@FormatMoney(_purchase.VatValue)" Icon="@Icons.Material.Outlined.Percent" AccentColor="#A76A13" SoftColor="#FFF4DF" Helper="Valor impuesto" />
+            <MetricCard Label="Total" Value="@FormatMoney(_purchase.Total)" Icon="@Icons.Material.Outlined.Payments" AccentColor="#14784F" SoftColor="#E5F7EF" Helper="Total compra" />
+            <MetricCard Label="Total pagado" Value="@FormatMoney(_purchase.TotalPaid)" Icon="@Icons.Material.Outlined.CreditScore" AccentColor="#315CAA" SoftColor="#EAF0FB" Helper="Pagos aplicados" />
+        </section>
+
+        <section class="vp-card vp-transaction-summary-card">
+            <div>
+                <span>Compra</span>
+                <strong>#@_purchase.Id</strong>
+                <small>@_purchase.Date.ToString("dd/MM/yyyy HH:mm")</small>
+            </div>
+            <div>
+                <span>Negocio</span>
+                <strong>@_purchase.BusinessName</strong>
+                <small>Id @_purchase.BusinessId</small>
+            </div>
+            <div>
+                <span>Proveedor</span>
+                <strong>@ResolveText(_purchase.ThirdPartyName, $"Tercero #{_purchase.ThirdPartyId}")</strong>
+                <small>@ResolveText(_purchase.ThirdPartyDocumentNumber, "Sin documento")</small>
+            </div>
+            <div>
+                <span>Usuario</span>
+                <strong>@ResolveText(_purchase.UserName, $"Usuario #{_purchase.UserId}")</strong>
+                <small>Id @_purchase.UserId</small>
+            </div>
+            <div>
+                <span>Estado</span>
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@GetStatusColor(_purchase.Status)">
+                    @ResolveStatus(_purchase.Status)
+                </MudChip>
+            </div>
+        </section>
+
+        <section class="vp-section-heading">
+            <div>
+                <h2>Productos</h2>
+                <p>Detalle de productos comprados.</p>
+            </div>
+        </section>
+
+        <section class="vp-card vp-table-card" aria-label="Detalle de productos comprados">
+            <div class="vp-table-scroll">
+                <table class="vp-inventory-table vp-transaction-table">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Cantidad</th>
+                            <th>Valor unitario</th>
+                            <th>IVA %</th>
+                            <th>Subtotal</th>
+                            <th>Valor IVA</th>
+                            <th>Total</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var detail in _purchase.Details)
+                        {
+                            <tr>
+                                <td class="vp-product-cell">
+                                    <strong>@detail.ProductName</strong>
+                                    <span>@ResolveText(detail.ProductExternalId, $"Producto #{detail.ProductId}")</span>
+                                </td>
+                                <td>@detail.Quantity.ToString("N2")</td>
+                                <td>@FormatMoney(detail.UnitValue)</td>
+                                <td>@detail.VatPercentage.ToString("N2")%</td>
+                                <td>@FormatMoney(detail.Subtotal)</td>
+                                <td>@FormatMoney(detail.VatValue)</td>
+                                <td><strong>@FormatMoney(detail.Total)</strong></td>
+                                <td>@ResolveStatus(detail.Status)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="vp-section-heading">
+            <div>
+                <h2>Pagos</h2>
+                <p>Medios de pago aplicados a la compra.</p>
+            </div>
+        </section>
+
+        <section class="vp-card vp-table-card" aria-label="Pagos de compra">
+            <div class="vp-table-scroll">
+                <table class="vp-inventory-table vp-transaction-table">
+                    <thead>
+                        <tr>
+                            <th>Medio de pago</th>
+                            <th>Valor recibido</th>
+                            <th>Valor cambio</th>
+                            <th>Valor aplicado</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var payment in _purchase.Payments)
+                        {
+                            <tr>
+                                <td>@ResolveText(payment.PaymentMethodName, $"Medio #{payment.PaymentMethodId}")</td>
+                                <td>@FormatMoney(payment.ReceivedValue)</td>
+                                <td>@FormatMoney(payment.ChangeValue)</td>
+                                <td><strong>@FormatMoney(payment.ReceivedValue - payment.ChangeValue)</strong></td>
+                                <td>@ResolveStatus(payment.Status)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+</main>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private static readonly DialogOptions CancelDialogOptions = new()
+    {
+        CloseButton = true,
+        FullWidth = true,
+        MaxWidth = MaxWidth.Small
+    };
+
+    private PurchaseDetailDto? _purchase;
+    private IReadOnlyList<ParameterOptionDto> _movementTypes = Array.Empty<ParameterOptionDto>();
+    private bool _loading;
+    private bool _accessDenied;
+    private bool _canCancel;
+    private bool _canceling;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await PermissionState.LoadAsync();
+        _accessDenied = !PermissionState.HasPermission("compras.consultar");
+        _canCancel = PermissionState.HasPermission("compras.anular");
+
+        if (!_accessDenied)
+        {
+            await LoadPurchaseAsync();
+        }
+    }
+
+    private async Task LoadPurchaseAsync()
+    {
+        _loading = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var response = await PurchaseService.GetByIdAsync(Id);
+            if (!response.IsSuccess)
+            {
+                _purchase = null;
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            _purchase = response.Data;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void GoBack() => NavigationManager.NavigateTo("/compras");
+
+    private async Task CancelPurchaseAsync()
+    {
+        if (_purchase is null || !_canCancel || !IsActive(_purchase.Status))
+        {
+            return;
+        }
+
+        var movementTypeId = await AskCancellationMovementTypeAsync(
+            $"Selecciona el movimiento Kardex para anular la compra #{_purchase.Id}.",
+            "Anular compra");
+
+        if (!movementTypeId.HasValue)
+        {
+            return;
+        }
+
+        _canceling = true;
+
+        try
+        {
+            var response = await PurchaseService.CancelAsync(_purchase.Id, new PurchaseCancelDto
+            {
+                CancellationKardexMovementTypeId = movementTypeId.Value
+            });
+
+            if (!response.IsSuccess)
+            {
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            Snackbar.Add(string.IsNullOrWhiteSpace(response.Message) ? "Compra anulada correctamente." : response.Message, Severity.Success);
+            await LoadPurchaseAsync();
+        }
+        finally
+        {
+            _canceling = false;
+        }
+    }
+
+    private async Task<int?> AskCancellationMovementTypeAsync(string message, string confirmText)
+    {
+        if (_movementTypes.Count == 0)
+        {
+            var response = await ParameterService.ListByClassCodeAsync("MOV-KDX");
+            if (!response.IsSuccess)
+            {
+                await HandleFailureAsync(response.Message);
+                return null;
+            }
+
+            _movementTypes = response.Data ?? Array.Empty<ParameterOptionDto>();
+        }
+
+        var parameters = new DialogParameters
+        {
+            [nameof(KardexMovementCancelDialog.Message)] = message,
+            [nameof(KardexMovementCancelDialog.ConfirmText)] = confirmText,
+            [nameof(KardexMovementCancelDialog.MovementTypes)] = _movementTypes
+        };
+
+        var dialog = await DialogService.ShowAsync<KardexMovementCancelDialog>(confirmText, parameters, CancelDialogOptions);
+        var result = await dialog.Result;
+
+        return result is null || result.Canceled ? null : result.Data as int?;
+    }
+
+    private async Task HandleFailureAsync(string? message)
+    {
+        var resolvedMessage = string.IsNullOrWhiteSpace(message)
+            ? "No fue posible completar la operacion."
+            : message;
+
+        if (IsUnauthorizedMessage(resolvedMessage))
+        {
+            await AuthService.LogoutAsync();
+            Snackbar.Add("Tu sesion termino. Inicia sesion nuevamente.", Severity.Warning);
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        _errorMessage = resolvedMessage;
+        Snackbar.Add(resolvedMessage, Severity.Error);
+    }
+
+    private static bool IsActive(string? status) => string.Equals(status, "A", StringComparison.OrdinalIgnoreCase);
+
+    private static string ResolveStatus(string? status) => IsActive(status) ? "Activo" : "Inactivo";
+
+    private static Color GetStatusColor(string? status) => IsActive(status) ? Color.Success : Color.Default;
+
+    private static string ResolveText(string? value, string fallback) => string.IsNullOrWhiteSpace(value) ? fallback : value;
+
+    private static string FormatMoney(decimal value) => value.ToString("C2", CultureInfo.GetCultureInfo("es-CO"));
+
+    private static bool IsUnauthorizedMessage(string? message) =>
+        !string.IsNullOrWhiteSpace(message)
+        && (message.StartsWith("Sesion expirada", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("Sesión expirada", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("No hay una sesion activa", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("No hay una sesión activa", StringComparison.OrdinalIgnoreCase));
+}

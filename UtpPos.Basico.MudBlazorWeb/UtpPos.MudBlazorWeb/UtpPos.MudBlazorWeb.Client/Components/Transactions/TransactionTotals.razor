@@ -1,0 +1,25 @@
+<section class="vp-metric-grid vp-transaction-metrics">
+    <MetricCard Label="Subtotal" Value="@FormatMoney(Subtotal)" Icon="@Icons.Material.Outlined.Calculate" Helper="Productos" />
+    <MetricCard Label="IVA" Value="@FormatMoney(VatValue)" Icon="@Icons.Material.Outlined.Percent" AccentColor="#A76A13" SoftColor="#FFF4DF" Helper="Valor IVA" />
+    <MetricCard Label="Total" Value="@FormatMoney(Total)" Icon="@Icons.Material.Outlined.Payments" AccentColor="#14784F" SoftColor="#E5F7EF" Helper="@TotalHelper" />
+    <MetricCard Label="Diferencia" Value="@FormatMoney(Difference)" Icon="@Icons.Material.Outlined.Balance" AccentColor="#315CAA" SoftColor="#EAF0FB" Helper="Total - pagos" />
+</section>
+
+@code {
+    [Parameter]
+    public decimal Subtotal { get; set; }
+
+    [Parameter]
+    public decimal VatValue { get; set; }
+
+    [Parameter]
+    public decimal Total { get; set; }
+
+    [Parameter]
+    public decimal Difference { get; set; }
+
+    [Parameter]
+    public string TotalHelper { get; set; } = "Transacción";
+
+    private static string FormatMoney(decimal value) => value.ToString("C2", CultureInfo.GetCultureInfo("es-CO"));
+}

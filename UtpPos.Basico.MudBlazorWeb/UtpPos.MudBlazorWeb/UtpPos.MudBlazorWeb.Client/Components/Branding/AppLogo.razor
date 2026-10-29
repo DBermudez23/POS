@@ -1,0 +1,15 @@
+<div class="vp-logo @(Light ? "vp-logo--light" : null)">
+    <BrandMark />
+    @if (!Compact)
+    {
+        <span class="vp-logo-copy">
+            <span class="vp-logo-name">UTP POS</span>
+            <span class="vp-logo-subtitle">Sistema de Ventas</span>
+        </span>
+    }
+</div>
+
+@code {
+    [Parameter] public bool Compact { get; set; }
+    [Parameter] public bool Light { get; set; }
+}

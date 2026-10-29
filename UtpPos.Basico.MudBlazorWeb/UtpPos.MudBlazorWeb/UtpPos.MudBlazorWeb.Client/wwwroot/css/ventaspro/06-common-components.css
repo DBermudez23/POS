@@ -1,0 +1,221 @@
+/* VentasPro - Common components
+Reusable page headers, metrics, actions, trends and status indicators.
+*/
+.vp-page-header {
+   display: flex;
+   align-items: flex-start;
+   justify-content: space-between;
+   gap: 20px;
+   margin-bottom: 24px;
+}
+
+.vp-page-kicker {
+   margin-bottom: 7px;
+   color: var(--vp-accent);
+   font-size: .67rem;
+   font-weight: 750;
+   letter-spacing: .12em;
+   text-transform: uppercase;
+}
+
+.vp-page-title {
+   margin: 0;
+   color: var(--vp-text);
+   font-size: clamp(1.45rem, 2vw, 2rem);
+   font-weight: 750;
+   letter-spacing: -.035em;
+}
+
+.vp-page-subtitle {
+   margin: 7px 0 0;
+   color: var(--vp-muted);
+   font-size: .82rem;
+}
+
+.vp-metric-grid {
+   display: grid;
+   grid-template-columns: repeat(4, minmax(0, 1fr));
+   gap: 16px;
+}
+
+.vp-metric-card {
+   position: relative;
+   min-height: 144px;
+   padding: 20px;
+   overflow: hidden;
+}
+
+.vp-metric-card::after {
+   content: "";
+   position: absolute;
+   right: -25px;
+   bottom: -35px;
+   width: 100px;
+   height: 100px;
+   border-radius: 50%;
+   background: var(--metric-soft, var(--vp-primary-soft));
+}
+
+.vp-metric-head {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   gap: 12px;
+}
+
+.vp-metric-label {
+   color: var(--vp-muted);
+   font-size: .72rem;
+   font-weight: 550;
+}
+
+.vp-metric-icon {
+   display: grid;
+   place-items: center;
+   width: 38px;
+   height: 38px;
+   border-radius: 11px;
+   color: var(--metric-color, var(--vp-primary-deep));
+   background: var(--metric-soft, var(--vp-primary-soft));
+}
+
+.vp-metric-value {
+   position: relative;
+   z-index: 1;
+   margin-top: 18px;
+   color: var(--vp-text);
+   font-size: clamp(1.28rem, 2vw, 1.65rem);
+   font-weight: 760;
+   letter-spacing: -.035em;
+}
+
+.vp-metric-foot {
+   position: relative;
+   z-index: 1;
+   display: flex;
+   align-items: center;
+   gap: 8px;
+   margin-top: 8px;
+   color: var(--vp-muted);
+   font-size: .65rem;
+}
+
+.vp-trend {
+   display: inline-flex;
+   align-items: center;
+   gap: 3px;
+   padding: 3px 7px;
+   border-radius: 999px;
+   color: var(--vp-success);
+   background: #e9f8f1;
+   font-size: .62rem;
+   font-weight: 700;
+}
+
+.vp-trend--down {
+   color: var(--vp-danger);
+   background: #fff0f3;
+}
+
+.vp-section-heading {
+   display: flex;
+   align-items: end;
+   justify-content: space-between;
+   gap: 16px;
+   margin: 26px 0 14px;
+}
+
+.vp-section-heading h2 {
+   margin: 0;
+   font-size: 1rem;
+   font-weight: 700;
+}
+
+.vp-section-heading p {
+   margin: 5px 0 0;
+   color: var(--vp-muted);
+   font-size: .7rem;
+}
+
+.vp-quick-grid {
+   display: grid;
+   grid-template-columns: repeat(4, minmax(0, 1fr));
+   gap: 14px;
+}
+
+.vp-quick-action {
+   display: flex;
+   align-items: center;
+   gap: 14px;
+   min-height: 92px;
+   padding: 16px;
+   text-decoration: none;
+   transition: transform .18s ease, box-shadow .18s ease;
+}
+
+.vp-quick-action:hover {
+   transform: translateY(-3px);
+   box-shadow: 0 15px 34px rgba(46, 68, 105, .13);
+}
+
+.vp-quick-icon {
+   display: grid;
+   place-items: center;
+   width: 43px;
+   height: 43px;
+   flex: 0 0 43px;
+   border-radius: 12px;
+   color: var(--quick-color, var(--vp-primary-deep));
+   background: var(--quick-soft, var(--vp-primary-soft));
+}
+
+.vp-quick-copy strong {
+   display: block;
+   color: var(--vp-text);
+   font-size: .8rem;
+   font-weight: 650;
+}
+
+.vp-quick-copy span {
+   display: block;
+   margin-top: 5px;
+   color: var(--vp-muted);
+   font-size: .64rem;
+}
+
+.vp-quick-arrow {
+   margin-left: auto;
+   color: #a3afbf;
+}
+
+.vp-status-chip {
+   display: inline-flex;
+   align-items: center;
+   justify-content: center;
+   width: fit-content;
+   padding: 4px 9px;
+   border-radius: 999px;
+   font-size: .6rem;
+   font-weight: 650;
+}
+
+.vp-status-chip--success,
+.vp-status-chip--entrada {
+   color: #14784f;
+   background: #e5f7ef;
+}
+
+.vp-status-chip--salida {
+   color: #b33c52;
+   background: #ffedf1;
+}
+
+.vp-status-chip--ajuste {
+   color: #a76a13;
+   background: #fff4df;
+}
+
+.vp-status-chip--pending {
+   color: #315caa;
+   background: #ebf1fc;
+}

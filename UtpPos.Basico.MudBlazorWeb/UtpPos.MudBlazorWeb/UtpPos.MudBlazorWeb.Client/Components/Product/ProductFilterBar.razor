@@ -1,0 +1,93 @@
+<section class="product-filter">
+    <div class="product-filter-main">
+        <MudTextField T="string"
+                      Label="Buscar producto"
+                      Placeholder="Nombre del producto..."
+                      @bind-Value="Filter.Name"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Outlined.Search"
+                      Disabled="Loading" />
+
+        <MudTextField T="string"
+                      Label="SKU / External ID"
+                      Placeholder="Codigo externo..."
+                      @bind-Value="Filter.ExternalId"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Outlined.QrCode2"
+                      Disabled="Loading" />
+    </div>
+
+    <div class="product-filter-secondary">
+        <MudNumericField T="int?"
+                         Label="Categoria"
+                         @bind-Value="Filter.CategoryId"
+                         Variant="Variant.Outlined"
+                         Margin="Margin.Dense"
+                         Min="1"
+                         Disabled="Loading" />
+
+        <MudNumericField T="int?"
+                         Label="Negocio"
+                         @bind-Value="Filter.BusinessId"
+                         Variant="Variant.Outlined"
+                         Margin="Margin.Dense"
+                         Min="1"
+                         Disabled="Loading" />
+
+        <MudSelect T="string"
+                   Label="Estado"
+                   @bind-Value="Filter.Status"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Clearable="true"
+                   Disabled="Loading">
+            <MudSelectItem T="string" Value="@("A")">Activo</MudSelectItem>
+            <MudSelectItem T="string" Value="@("I")">Inactivo</MudSelectItem>
+        </MudSelect>
+
+        <div class="product-filter-actions">
+            <MudIconButton Icon="@Icons.Material.Outlined.Refresh"
+                           Color="Color.Default"
+                           Disabled="Loading"
+                           OnClick="ClearAsync" />
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Outlined.Tune"
+                       Disabled="Loading"
+                       OnClick="SearchAsync">
+                Aplicar
+            </MudButton>
+
+            @if (CanCreate)
+            {
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           StartIcon="@Icons.Material.Outlined.AddBox"
+                           Disabled="Loading"
+                           OnClick="CreateAsync">
+                    Nuevo producto
+                </MudButton>
+            }
+        </div>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public ProductListFilterDto Filter { get; set; } = new();
+    [Parameter] public bool Loading { get; set; }
+    [Parameter] public bool CanCreate { get; set; }
+    [Parameter] public EventCallback OnSearch { get; set; }
+    [Parameter] public EventCallback OnClear { get; set; }
+    [Parameter] public EventCallback OnCreate { get; set; }
+
+    private Task SearchAsync() => OnSearch.InvokeAsync();
+
+    private Task ClearAsync() => OnClear.InvokeAsync();
+
+    private Task CreateAsync() => OnCreate.InvokeAsync();
+}

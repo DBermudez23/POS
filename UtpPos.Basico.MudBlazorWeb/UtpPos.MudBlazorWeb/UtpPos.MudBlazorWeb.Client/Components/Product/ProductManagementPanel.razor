@@ -1,0 +1,215 @@
+@inject IProductService ProductService
+@inject IAuthService AuthService
+@inject PermissionStateService PermissionState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<section class="vp-products-panel-stack">
+    <ProductFilterBar Filter="_filter"
+                      Loading="_loading"
+                      CanCreate="_canCreate"
+                      OnSearch="LoadProductsAsync"
+                      OnClear="ClearFiltersAsync"
+                      OnCreate="OpenCreateDialogAsync" />
+
+    @if (_accessDenied)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+            No tienes permisos para consultar productos.
+        </MudAlert>
+    }
+    else if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+            @_errorMessage
+        </MudAlert>
+    }
+    else if (_loading)
+    {
+        <div class="vp-card product-loading">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            <MudText Typo="Typo.body2" Class="vp-muted">Consultando productos...</MudText>
+        </div>
+    }
+    else if (_products.Count == 0)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.Inventory2"
+                    Title="No se encontraron productos"
+                    Message="Ajusta los filtros o crea un producto nuevo si tienes permiso." />
+    }
+    else
+    {
+        <ProductTable Products="_products"
+                      CanViewDetails="_canViewDetails"
+                      CanEdit="_canEdit"
+                      CanDeactivate="_canDeactivate"
+                      OnViewDetails="OpenDetailsDialogAsync"
+                      OnEdit="OpenEditDialogAsync"
+                      OnDeactivate="DeleteProductAsync" />
+    }
+</section>
+
+@code {
+    private static readonly DialogOptions DialogOptions = new()
+    {
+        CloseButton = true,
+        FullWidth = true,
+        MaxWidth = MaxWidth.Medium
+    };
+
+    private readonly ProductListFilterDto _filter = new() { Status = "A" };
+    private IReadOnlyList<ProductDto> _products = Array.Empty<ProductDto>();
+    private bool _loading;
+    private bool _accessDenied;
+    private bool _canCreate;
+    private bool _canViewDetails;
+    private bool _canEdit;
+    private bool _canDeactivate;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await PermissionState.LoadAsync();
+
+        _accessDenied = !PermissionState.HasPermission("productos.listar");
+        _canCreate = PermissionState.HasPermission("productos.crear");
+        _canViewDetails = PermissionState.HasPermission("productos.consultar");
+        _canEdit = PermissionState.HasPermission("productos.actualizar");
+        _canDeactivate = PermissionState.HasPermission("productos.eliminar");
+
+        if (!_accessDenied)
+        {
+            await LoadProductsAsync();
+        }
+    }
+
+    private async Task LoadProductsAsync()
+    {
+        if (!PermissionState.HasPermission("productos.listar"))
+        {
+            _accessDenied = true;
+            return;
+        }
+
+        _loading = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var response = await ProductService.ListAsync(_filter);
+
+            if (!response.IsSuccess)
+            {
+                _products = Array.Empty<ProductDto>();
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            _products = response.Data ?? Array.Empty<ProductDto>();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        _filter.Name = null;
+        _filter.ExternalId = null;
+        _filter.CategoryId = null;
+        _filter.BusinessId = null;
+        _filter.Status = "A";
+
+        await LoadProductsAsync();
+    }
+
+    private async Task OpenCreateDialogAsync()
+    {
+        var dialog = await DialogService.ShowAsync<ProductFormDialog>("Nuevo producto", DialogOptions);
+        await HandleDialogResultAsync(await dialog.Result);
+    }
+
+    private async Task OpenEditDialogAsync(ProductDto product)
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(ProductFormDialog.Product)] = product
+        };
+
+        var dialog = await DialogService.ShowAsync<ProductFormDialog>("Editar producto", parameters, DialogOptions);
+        await HandleDialogResultAsync(await dialog.Result);
+    }
+
+    private async Task OpenDetailsDialogAsync(ProductDto product)
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(ProductDetailsDialog.ProductId)] = product.Id
+        };
+
+        await DialogService.ShowAsync<ProductDetailsDialog>($"Detalle de {product.Name}", parameters, DialogOptions);
+    }
+
+    private async Task DeleteProductAsync(ProductDto product)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Inactivar producto",
+            $"Deseas inactivar el producto {product.Name}?",
+            yesText: "Inactivar",
+            noText: null,
+            cancelText: "Cancelar");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        var response = await ProductService.DeleteAsync(product.Id);
+
+        if (!response.IsSuccess)
+        {
+            await HandleFailureAsync(response.Message);
+            return;
+        }
+
+        Snackbar.Add(response.Message, Severity.Success);
+        await LoadProductsAsync();
+    }
+
+    private async Task HandleDialogResultAsync(DialogResult? result)
+    {
+        if (result is null || result.Canceled)
+        {
+            return;
+        }
+
+        Snackbar.Add(result.Data as string ?? "Operacion completada correctamente.", Severity.Success);
+        await LoadProductsAsync();
+    }
+
+    private async Task HandleFailureAsync(string? message)
+    {
+        var resolvedMessage = string.IsNullOrWhiteSpace(message)
+            ? "No fue posible completar la operacion."
+            : message;
+
+        if (IsUnauthorizedMessage(resolvedMessage))
+        {
+            await AuthService.LogoutAsync();
+            Snackbar.Add("Tu sesion termino. Inicia sesion nuevamente.", Severity.Warning);
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        _errorMessage = resolvedMessage;
+        Snackbar.Add(resolvedMessage, Severity.Error);
+    }
+
+    private static bool IsUnauthorizedMessage(string? message) =>
+        !string.IsNullOrWhiteSpace(message)
+        && (message.StartsWith("Sesion expirada", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("No hay una sesion activa", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("Sesi", StringComparison.OrdinalIgnoreCase));
+}

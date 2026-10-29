@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Platforms>AnyCPU;x86</Platforms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\UtpPos.Framework.Transversal.Common\UtpPos.Framework.Transversal.Common.csproj" />
+    <ProjectReference Include="..\UtpPos.Framework.Transversal.Interface\UtpPos.Framework.Transversal.Interface.csproj" />
+  </ItemGroup>
+
+</Project>

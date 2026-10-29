@@ -1,0 +1,304 @@
+/* VentasPro - Users and RBAC domain
+   Styles for user, role and permission administration views and dialogs.
+*/
+
+.vp-users-page {
+    display: grid;
+    gap: 20px;
+}
+
+.vp-rbac-empty {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 22px;
+}
+
+.vp-rbac-empty .mud-icon-root {
+    color: var(--vp-muted);
+    font-size: 1.8rem;
+}
+
+.vp-rbac-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px;
+    gap: 16px;
+    border-bottom: 2px solid var(--vp-border);
+}
+
+.vp-rbac-empty strong,
+.vp-rbac-section-head h3 {
+    display: block;
+    margin: 2;
+    color: var(--vp-text);
+}
+
+.vp-rbac-empty span,
+.vp-rbac-section-head p,
+.vp-rbac-stat-card span,
+.vp-rbac-list-item span {
+    color: var(--vp-muted);
+}
+
+.vp-rbac-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px;
+}
+
+.vp-rbac-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 16px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    color: var(--vp-muted);
+    background: transparent;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color .18s ease, color .18s ease, border-color .18s ease, transform .18s ease;
+}
+
+.vp-rbac-tab:hover {
+    color: var(--vp-text);
+    background: rgba(62, 187, 208, .08);
+}
+
+.vp-rbac-tab--active {
+    color: var(--vp-primary-deep);
+    background: rgba(62, 187, 208, .12);
+    border-color: rgba(62, 187, 208, .22);
+    box-shadow: inset 0 0 0 1px rgba(62, 187, 208, .08);
+}
+
+.vp-rbac-panel {
+    display: grid;
+}
+
+.vp-rbac-panel-stack {
+    display: grid;
+    gap: 16px;
+}
+
+.vp-rbac-toolbar {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px;
+}
+
+.vp-rbac-toolbar__group {
+    display: grid;
+    gap: 12px;
+}
+
+.vp-rbac-toolbar__group--wide {
+    flex: 1 1 auto;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.vp-rbac-toolbar__actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.vp-rbac-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    min-height: 220px;
+}
+
+.vp-rbac-table-card {
+    overflow: hidden;
+}
+
+.vp-rbac-table-card--compact {
+    margin-top: 14px;
+}
+
+.vp-rbac-table-card .mud-table-head {
+    background: #f8fafc;
+}
+
+.vp-rbac-table-card .mud-table-cell {
+    border-color: var(--vp-border);
+}
+
+.vp-rbac-actions-heading {
+    text-align: right;
+}
+
+.vp-rbac-user-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.vp-rbac-user-cell strong,
+.vp-rbac-list-item strong,
+.vp-rbac-stat-card strong {
+    color: var(--vp-text);
+}
+
+.vp-rbac-user-cell span {
+    color: var(--vp-muted);
+    font-size: .76rem;
+}
+
+.vp-rbac-row-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
+}
+
+.vp-rbac-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.vp-rbac-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    min-width: min(660px, 76vw);
+}
+
+.vp-rbac-dialog-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 18px;
+}
+
+.vp-rbac-inline-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.vp-rbac-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.vp-rbac-stat-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 18px;
+}
+
+.vp-rbac-stat-card strong {
+    font-size: 1.55rem;
+    line-height: 1;
+}
+
+.vp-rbac-section-head {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.vp-rbac-section-head p {
+    margin: 5px 0 0;
+    font-size: .8rem;
+}
+
+.vp-rbac-catalog-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.vp-rbac-catalog-card {
+    padding: 18px;
+}
+
+.vp-rbac-list {
+    display: grid;
+    gap: 10px;
+}
+
+.vp-rbac-list-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 14px;
+    border: 1px solid var(--vp-border);
+    border-radius: 12px;
+    background: #f8fafc;
+}
+
+.vp-rbac-list-item strong {
+    font-size: .82rem;
+}
+
+.vp-rbac-list-item span {
+    font-size: .76rem;
+}
+
+@media (max-width: 1100px) {
+    .vp-rbac-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .vp-rbac-toolbar__actions {
+        justify-content: flex-start;
+    }
+
+    .vp-rbac-toolbar__group--wide,
+    .vp-rbac-stat-grid,
+    .vp-rbac-catalog-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 700px) {
+    .vp-rbac-tabs,
+    .vp-rbac-toolbar,
+    .vp-rbac-catalog-card,
+    .vp-rbac-stat-card {
+        padding: 14px;
+    }
+
+    .vp-rbac-toolbar__group--wide,
+    .vp-rbac-form-grid,
+    .vp-rbac-stat-grid,
+    .vp-rbac-catalog-grid,
+    .vp-rbac-inline-form {
+        grid-template-columns: 1fr;
+    }
+
+    .vp-rbac-form-grid {
+        min-width: 0;
+    }
+
+    .vp-rbac-inline-form .mud-button-root,
+    .vp-rbac-toolbar__actions .mud-button-root {
+        width: 100%;
+    }
+
+    .vp-rbac-row-actions {
+        justify-content: flex-start;
+    }
+}

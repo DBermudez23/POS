@@ -1,0 +1,40 @@
+@implements IDisposable
+@inject PermissionStateService PermissionState
+
+@if (CanRender)
+{
+    <MudNavLink Href="@Href" Match="@Match" Icon="@Icon" Class="vp-nav-item">
+        <span>@Title</span>
+        @if (!string.IsNullOrWhiteSpace(Badge))
+        {
+            <span class="vp-nav-badge">@Badge</span>
+        }
+    </MudNavLink>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Icon { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Href { get; set; } = string.Empty;
+    [Parameter] public string? Badge { get; set; }
+    [Parameter] public string? PermissionName { get; set; }
+    [Parameter] public NavLinkMatch Match { get; set; } = NavLinkMatch.Prefix;
+
+    private bool CanRender => string.IsNullOrWhiteSpace(PermissionName)
+        || PermissionState.HasPermission(PermissionName);
+
+    protected override void OnInitialized()
+    {
+        PermissionState.OnChange += HandlePermissionChange;
+    }
+
+    public void Dispose()
+    {
+        PermissionState.OnChange -= HandlePermissionChange;
+    }
+
+    private void HandlePermissionChange()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+}

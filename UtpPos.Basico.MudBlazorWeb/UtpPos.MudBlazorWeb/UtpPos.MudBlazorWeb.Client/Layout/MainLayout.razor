@@ -1,0 +1,73 @@
+@inherits LayoutComponentBase
+@inject IAuthService AuthService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject PermissionStateService PermissionState
+@inject CurrentUserRoleStateService RoleState
+@inject NavigationManager NavigationManager
+@inject ISnackbar Snackbar
+
+<MudThemeProvider Theme="@VentasProTheme.Default" IsDarkMode="@_isDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<AuthorizeView>
+    <Authorized>
+        <MudLayout Class="vp-shell">
+            <AppTopBar OnMenuClick="ToggleDrawer" OnLogout="LogoutAsync" OnThemeToggle="ToggleTheme"
+                       IsDarkMode="@_isDarkMode" />
+
+            <MudDrawer @bind-Open="_drawerOpen" Variant="DrawerVariant.Responsive" Breakpoint="Breakpoint.Md"
+                       Elevation="0" Class="vp-sidebar-drawer">
+                <NavMenu />
+            </MudDrawer>
+
+            <MudMainContent>
+                @Body
+            </MudMainContent>
+        </MudLayout>
+    </Authorized>
+
+    <NotAuthorized>
+        @Body
+    </NotAuthorized>
+</AuthorizeView>
+
+<div id="blazor-error-ui">
+    Ocurrió un error inesperado.
+    <a href="" class="reload">Recargar</a>
+    <a class="dismiss">×</a>
+</div>
+
+@code {
+    private bool _drawerOpen = true;
+    private bool _isDarkMode;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        if (authenticationState.User.Identity?.IsAuthenticated == true)
+        {
+            await Task.WhenAll(
+                PermissionState.LoadAsync(),
+                RoleState.LoadAsync());
+        }
+    }
+
+    private void ToggleDrawer()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+
+    private void ToggleTheme()
+    {
+        _isDarkMode = !_isDarkMode;
+    }
+
+    private async Task LogoutAsync()
+    {
+        await AuthService.LogoutAsync();
+        Snackbar.Add("Sesión cerrada correctamente.", Severity.Success);
+        NavigationManager.NavigateTo("/login", replace: true);
+    }
+}

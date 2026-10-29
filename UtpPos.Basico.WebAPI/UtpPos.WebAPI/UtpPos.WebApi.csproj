@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Platforms>AnyCPU;x86</Platforms>
+    <UserSecretsId>a2e1a68a-5707-44ab-ae79-0fedea67094c</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AutoMapper" Version="9.0.0" />
+    <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="7.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="6.0.36" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="6.0.16" />
+    <PackageReference Include="Swashbuckle.AspNetCore.Swagger" Version="6.5.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="6.5.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="6.5.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\UtpPos.Framework.Application.Interface\UtpPos.Framework.Application.Interface.csproj" />
+    <ProjectReference Include="..\UtpPos.Framework.Application.Main\UtpPos.Framework.Application.Main.csproj" />
+    <ProjectReference Include="..\UtpPos.Framework.Domain.Core\UtpPos.Framework.Domain.Core.csproj" />
+    <ProjectReference Include="..\UtpPos.Framework.Domain.Entity\UtpPos.Framework.Domain.Entity.csproj" />
+    <ProjectReference Include="..\UtpPos.Framework.Domain.Interface\UtpPos.Framework.Domain.Interface.csproj" />
+    <ProjectReference Include="..\UtpPos.Framework.InfraStructure.Data\UtpPos.Framework.InfraStructure.Data.csproj" />
+    <ProjectReference Include="..\UtpPos.Framework.InfraStructure.Interface\UtpPos.Framework.InfraStructure.Interface.csproj" />
+    <ProjectReference Include="..\UtpPos.Framework.InfraStructure.Repository\UtpPos.Framework.InfraStructure.Repository.csproj" />
+    <ProjectReference Include="..\UtpPos.Framework.Transversal.Interface\UtpPos.Framework.Transversal.Interface.csproj" />
+    <ProjectReference Include="..\UtpPos.Framework.Transversal.Logging\UtpPos.Framework.Transversal.Logging.csproj" />
+    <ProjectReference Include="..\UtpPos.Framework.Transversal.Mapper\UtpPos.Framework.Transversal.Mapper.csproj" />
+    <ProjectReference Include="..\UtpPos.Framework.Transversal.Security\UtpPos.Framework.Transversal.Security.csproj" />
+  </ItemGroup>
+
+</Project>

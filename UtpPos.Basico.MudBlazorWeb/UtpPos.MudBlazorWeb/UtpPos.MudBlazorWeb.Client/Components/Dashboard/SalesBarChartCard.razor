@@ -1,0 +1,66 @@
+<article class="vp-card vp-panel-card">
+    <header class="vp-panel-head">
+        <div>
+            <h3>Ventas de la semana</h3>
+            <p>Comportamiento diario de ingresos</p>
+        </div>
+        <div class="text-right">
+            <div class="vp-chart-total">@FormatCurrency(Items.Sum(item => item.Total))</div>
+            @if (!string.IsNullOrWhiteSpace(TrendText))
+            {
+                <TrendBadge Text="@TrendText" Positive="TrendPositive" />
+            }
+        </div>
+    </header>
+
+    @if (Items.Count == 0)
+    {
+        <div class="vp-inline-empty">No hay ventas para graficar en el periodo seleccionado.</div>
+    }
+    else
+    {
+        <div class="vp-bar-chart" role="img" aria-label="Gráfico de barras de ventas semanales">
+            @foreach (var item in Items)
+            {
+                <div class="vp-bar-column">
+                    <div class="vp-bar @(IsHighlight(item) ? "vp-bar--highlight" : null)"
+                         style="height:@($"{GetHeight(item.Total)}%")"
+                         title="@FormatCurrency(item.Total)"></div>
+                    <span class="vp-bar-label">@ResolveLabel(item)</span>
+                </div>
+            }
+        </div>
+    }
+</article>
+
+@code {
+    private static readonly CultureInfo ColombianCulture = CultureInfo.GetCultureInfo("es-CO");
+
+    [Parameter] public IReadOnlyList<DashboardWeeklySalesItemDto> Items { get; set; } = Array.Empty<DashboardWeeklySalesItemDto>();
+    [Parameter] public string? TrendText { get; set; }
+    [Parameter] public bool TrendPositive { get; set; } = true;
+
+    private int GetHeight(decimal total)
+    {
+        var max = Items.Count == 0 ? 0 : Items.Max(item => item.Total);
+        if (max <= 0)
+            return 12;
+
+        return Math.Clamp((int)Math.Round(total / max * 100), 12, 100);
+    }
+
+    private bool IsHighlight(DashboardWeeklySalesItemDto item)
+    {
+        return Items.Count > 0 && item.Total == Items.Max(value => value.Total);
+    }
+
+    private static string ResolveLabel(DashboardWeeklySalesItemDto item)
+    {
+        if (!string.IsNullOrWhiteSpace(item.Label))
+            return item.Label;
+
+        return item.Date.ToString("ddd", ColombianCulture);
+    }
+
+    private static string FormatCurrency(decimal value) => value.ToString("C0", ColombianCulture);
+}

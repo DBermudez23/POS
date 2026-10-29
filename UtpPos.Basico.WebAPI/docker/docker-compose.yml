@@ -1,0 +1,28 @@
+name: utppos-db
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: utppos-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${UTPPOS_SA_PASSWORD:?define UTPPOS_SA_PASSWORD en docker/.env}
+    ports:
+      # Solo loopback: SQL Server con 'sa' no debe quedar expuesto a la red local
+      - "127.0.0.1:${UTPPOS_SQL_PORT:-14335}:1433"
+      - "[::1]:${UTPPOS_SQL_PORT:-14335}:1433"   # en Windows "localhost" resuelve primero a IPv6
+    volumes:
+      - utppos_sql_data:/var/opt/mssql
+      - utppos_sql_backup:/var/opt/mssql/backup
+      # .bak de origen, solo lectura (ver restore-from-bak.ps1)
+      - ../Docs/database/bak:/import:ro
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  utppos_sql_data:
+  utppos_sql_backup:

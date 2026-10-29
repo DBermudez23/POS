@@ -1,0 +1,104 @@
+@inject PermissionStateService PermissionState
+
+@if (!_visibleTabs.Any())
+{
+    <div class="vp-card vp-rbac-empty">
+        <MudIcon Icon="@Icons.Material.Outlined.Lock" />
+        <div>
+            <strong>Sin permisos de inventario</strong>
+            <span>No tienes permisos para consultar Inventario o Kardex.</span>
+        </div>
+    </div>
+}
+else
+{
+    <section class="vp-rbac-tabs vp-card" role="tablist" aria-label="Inventario y Kardex">
+        @foreach (var tab in _visibleTabs)
+        {
+            <button type="button" class="vp-rbac-tab @GetTabClass(tab.Key)" role="tab"
+                    aria-selected="@(_activeTabKey == tab.Key)" @onclick="() => SelectTab(tab.Key)">
+                <MudIcon Icon="@tab.Icon" Size="Size.Small" />
+                <span>@tab.Title</span>
+            </button>
+        }
+    </section>
+
+    <section class="vp-rbac-panel">
+        @switch (_activeTabKey)
+        {
+            case InventoryTabKey:
+                <InventoryPanel OnViewKardex="ShowKardexForProductAsync" />
+                break;
+
+            case KardexTabKey:
+                <KardexPanel ProductId="_kardexProductId" ProductName="@_kardexProductName" />
+                break;
+        }
+    </section>
+}
+
+@code {
+    private const string InventoryTabKey = "inventory";
+    private const string KardexTabKey = "kardex";
+
+    private string? _activeTabKey;
+    private int? _kardexProductId;
+    private string? _kardexProductName;
+
+    private readonly List<InventoryTabOption> _tabs =
+    [
+        new(
+            Key: InventoryTabKey,
+            Title: "Inventario",
+            Icon: Icons.Material.Outlined.Inventory2,
+            PermissionName: "inventario.listar"
+        ),
+        new(
+            Key: KardexTabKey,
+            Title: "Kardex",
+            Icon: Icons.Material.Outlined.History,
+            PermissionName: "kardex.listar"
+        )
+    ];
+
+    private List<InventoryTabOption> _visibleTabs = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await PermissionState.LoadAsync();
+
+        _visibleTabs = _tabs
+            .Where(tab => PermissionState.HasPermission(tab.PermissionName))
+            .ToList();
+
+        _activeTabKey = _visibleTabs.FirstOrDefault()?.Key;
+    }
+
+    private void SelectTab(string key)
+    {
+        _activeTabKey = key;
+    }
+
+    private Task ShowKardexForProductAsync(InventoryDto inventory)
+    {
+        if (!PermissionState.HasPermission("kardex.listar"))
+        {
+            return Task.CompletedTask;
+        }
+
+        _kardexProductId = inventory.ProductId;
+        _kardexProductName = inventory.ProductName;
+        _activeTabKey = KardexTabKey;
+        return Task.CompletedTask;
+    }
+
+    private string GetTabClass(string key) =>
+        _activeTabKey == key ? "vp-rbac-tab--active" : string.Empty;
+
+    private sealed record InventoryTabOption(
+        string Key,
+        string Title,
+        string Icon,
+        string PermissionName
+    );
+}

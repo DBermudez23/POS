@@ -1,0 +1,20 @@
+<div class="vp-search-box @Class">
+    <MudTextField T="string"
+                  Value="@Value"
+                  ValueChanged="@ValueChanged"
+                  Placeholder="@Placeholder"
+                  Variant="Variant.Outlined"
+                  Margin="Margin.Dense"
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.Search"
+                  OnKeyDown="OnKeyDown"
+                  Immediate="true" />
+</div>
+
+@code {
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "Buscar...";
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public EventCallback<KeyboardEventArgs> OnKeyDown { get; set; }
+}

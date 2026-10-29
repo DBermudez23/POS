@@ -1,0 +1,255 @@
+@page "/negocios"
+@attribute [Authorize]
+@inject IBusinessService BusinessService
+@inject IAuthService AuthService
+@inject PermissionStateService PermissionState
+@inject CurrentUserRoleStateService RoleState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<PageTitle>Negocios | VentasPro</PageTitle>
+
+<main class="vp-page">
+    <PageHeader Kicker="Administración" Title="Negocios"
+                Subtitle="Gestiona las empresas habilitadas para operar en el sistema.">
+        <Action>
+            <div class="business-header-actions">
+                @if (RoleState.HasSystemRole)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary">
+                        Rol de sistema
+                    </MudChip>
+                }
+                @if (RoleState.HasFullAccessRole)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary">
+                        Acceso total
+                    </MudChip>
+                }
+                <PermissionView Permission="negocios.crear">
+                    <MudButton Variant="Variant.Filled" Color="Color.Secondary"
+                               StartIcon="@Icons.Material.Outlined.AddBusiness" OnClick="OpenCreateDialogAsync">
+                        Nuevo negocio
+                    </MudButton>
+                </PermissionView>
+            </div>
+        </Action>
+    </PageHeader>
+
+    @if (_accessDenied)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+            No tienes permisos para consultar negocios.
+        </MudAlert>
+    }
+    else
+    {
+        <BusinessFilterBar Filter="@_filter" Loading="_loading" OnSearch="LoadBusinessesAsync"
+                           OnClear="ClearFiltersAsync" />
+
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mt-4">
+                @_errorMessage
+            </MudAlert>
+        }
+
+        @if (_loading)
+        {
+            <div class="business-loading">
+                <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+                <MudText Typo="Typo.body2" Class="vp-muted">Consultando negocios...</MudText>
+            </div>
+        }
+        else if (_businesses.Count == 0 && string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <div class="mt-4">
+                <EmptyState Icon="@Icons.Material.Outlined.DomainDisabled" Title="No se encontraron negocios"
+                            Message="Ajusta los filtros o registra un nuevo negocio si tienes permiso." />
+            </div>
+        }
+        else if (_businesses.Count > 0)
+        {
+            <BusinessTable Items="@_businesses" OnDetails="OpenDetailsAsync" OnEdit="OpenEditDialogAsync"
+                           OnDelete="DeleteBusinessAsync" />
+        }
+    }
+</main>
+
+@code {
+    private static readonly DialogOptions DialogOptions = new()
+    {
+        CloseButton = true,
+        FullWidth = true,
+        MaxWidth = MaxWidth.Medium
+    };
+
+    private BusinessListFilterDto _filter = new() { Status = "A" };
+    private IReadOnlyList<BusinessDto> _businesses = Array.Empty<BusinessDto>();
+    private bool _loading;
+    private bool _accessDenied;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(PermissionState.LoadAsync(), RoleState.LoadAsync());
+
+        var authorizationError = IsUnauthorizedMessage(PermissionState.ErrorMessage)
+            ? PermissionState.ErrorMessage
+            : RoleState.ErrorMessage;
+
+        if (IsUnauthorizedMessage(authorizationError))
+        {
+            await HandleFailureAsync(authorizationError);
+            return;
+        }
+
+        _accessDenied = !PermissionState.HasPermission("negocios.listar");
+        if (!_accessDenied)
+        {
+            await LoadBusinessesAsync();
+        }
+    }
+
+    private async Task LoadBusinessesAsync()
+    {
+        if (!PermissionState.HasPermission("negocios.listar"))
+        {
+            _accessDenied = true;
+            return;
+        }
+
+        _loading = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var response = await BusinessService.ListAsync(_filter);
+            if (!response.IsSuccess)
+            {
+                _businesses = Array.Empty<BusinessDto>();
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            _businesses = response.Data ?? Array.Empty<BusinessDto>();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        _filter = new BusinessListFilterDto { Status = "A" };
+        await LoadBusinessesAsync();
+    }
+
+    private async Task OpenCreateDialogAsync()
+    {
+        if (!PermissionState.HasPermission("negocios.crear"))
+        {
+            return;
+        }
+
+        var dialog = await DialogService.ShowAsync<BusinessFormDialog>("Nuevo negocio", DialogOptions);
+        await HandleFormDialogResultAsync(await dialog.Result);
+    }
+
+    private async Task OpenEditDialogAsync(BusinessDto business)
+    {
+        if (!PermissionState.HasPermission("negocios.actualizar"))
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters
+        {
+            [nameof(BusinessFormDialog.Business)] = business
+        };
+
+        var dialog = await DialogService.ShowAsync<BusinessFormDialog>(
+            "Editar negocio",
+            parameters,
+            DialogOptions);
+
+        await HandleFormDialogResultAsync(await dialog.Result);
+    }
+
+    private Task OpenDetailsAsync(BusinessDto business)
+    {
+        if (!PermissionState.HasPermission("negocios.consultar"))
+        {
+            return Task.CompletedTask;
+        }
+
+        NavigationManager.NavigateTo($"/negocios/{business.Id}");
+        return Task.CompletedTask;
+    }
+
+    private async Task DeleteBusinessAsync(BusinessDto business)
+    {
+        if (!PermissionState.HasPermission("negocios.eliminar") || business.Status != "A")
+        {
+            return;
+        }
+
+        var confirmed = await DialogService.ShowMessageBox(
+            "Desactivar negocio",
+            $"¿Deseas desactivar {business.Name}? Esta acción no elimina el registro físicamente.",
+            yesText: "Desactivar",
+            noText: null,
+            cancelText: "Cancelar");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        var response = await BusinessService.DeleteAsync(business.Id);
+        if (!response.IsSuccess)
+        {
+            await HandleFailureAsync(response.Message);
+            return;
+        }
+
+        Snackbar.Add(response.Message, Severity.Success);
+        await LoadBusinessesAsync();
+    }
+
+    private async Task HandleFormDialogResultAsync(DialogResult? result)
+    {
+        if (result is null || result.Canceled)
+        {
+            return;
+        }
+
+        Snackbar.Add(result.Data as string ?? "Operación completada correctamente.", Severity.Success);
+        await LoadBusinessesAsync();
+    }
+
+    private async Task HandleFailureAsync(string? message)
+    {
+        var resolvedMessage = string.IsNullOrWhiteSpace(message)
+            ? "No fue posible completar la operación."
+            : message;
+
+        if (IsUnauthorizedMessage(resolvedMessage))
+        {
+            await AuthService.LogoutAsync();
+            Snackbar.Add("Tu sesión terminó. Inicia sesión nuevamente.", Severity.Warning);
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        _errorMessage = resolvedMessage;
+        Snackbar.Add(resolvedMessage, Severity.Error);
+    }
+
+    private static bool IsUnauthorizedMessage(string? message) =>
+        !string.IsNullOrWhiteSpace(message)
+        && (message.StartsWith("Sesión expirada", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("No hay una sesión activa", StringComparison.OrdinalIgnoreCase));
+}

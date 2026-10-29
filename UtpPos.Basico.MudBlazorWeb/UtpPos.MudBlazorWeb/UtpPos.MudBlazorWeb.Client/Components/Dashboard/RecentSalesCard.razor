@@ -1,0 +1,39 @@
+<article class="vp-card vp-panel-card">
+    <header class="vp-panel-head">
+        <div>
+            <h3>Ventas recientes</h3>
+            <p>Últimas transacciones registradas</p>
+        </div>
+        <a class="vp-panel-link" href="#ventas">Ver todas</a>
+    </header>
+
+    @if (Items.Count == 0)
+    {
+        <div class="vp-inline-empty">No hay ventas recientes para mostrar.</div>
+    }
+    else
+    {
+        <div class="vp-data-list">
+            @foreach (var sale in Items)
+            {
+                <div class="vp-data-row">
+                    <div class="vp-data-main">
+                        <strong>@(string.IsNullOrWhiteSpace(sale.CustomerName) ? "Cliente mostrador" : sale.CustomerName)</strong>
+                        <span>@sale.InvoiceNumber · @sale.Time</span>
+                    </div>
+                    <span>@sale.PaymentMethod</span>
+                    <StatusChip Text="@sale.Status" Type="success" />
+                    <span class="vp-value-strong">@FormatCurrency(sale.Total)</span>
+                </div>
+            }
+        </div>
+    }
+</article>
+
+@code {
+    private static readonly CultureInfo ColombianCulture = CultureInfo.GetCultureInfo("es-CO");
+
+    [Parameter] public IReadOnlyList<DashboardRecentSaleItemDto> Items { get; set; } = Array.Empty<DashboardRecentSaleItemDto>();
+
+    private static string FormatCurrency(decimal value) => value.ToString("C0", ColombianCulture);
+}

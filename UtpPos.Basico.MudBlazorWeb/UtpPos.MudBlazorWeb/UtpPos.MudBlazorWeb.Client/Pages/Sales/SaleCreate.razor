@@ -1,0 +1,1078 @@
+@page "/ventas/nueva"
+@attribute [Authorize]
+@using UtpPos.MudBlazorWeb.Client.Components.Transactions
+@inject ISaleService SaleService
+@inject IBusinessService BusinessService
+@inject IProductService ProductService
+@inject IThirdPartyService ThirdPartyService
+@inject IParameterService ParameterService
+@inject IAuthService AuthService
+@inject PermissionStateService PermissionState
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<PageTitle>Nueva venta | VentasPro</PageTitle>
+
+<main class="vp-page vp-transaction-page">
+    <PageHeader Kicker="Ventas" Title="Registrar venta" Subtitle="Registra salidas por venta con productos y pagos.">
+        <Action>
+            <MudButton  Variant="Variant.Outlined" 
+                        Color="Color.Default" 
+                        StartIcon="@Icons.Material.Outlined.ArrowBack"
+                        OnClick="GoBack">
+                Volver
+            </MudButton>
+        </Action>
+    </PageHeader>
+
+    @if (_accessDenied)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+            No tienes permisos para registrar ventas.
+        </MudAlert>
+    }
+    else if (_catalogLoading)
+    {
+        <TransactionLoading />
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(_validationMessage))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">
+                @_validationMessage
+            </MudAlert>
+        }
+
+        <TransactionBusinessMovementCard Businesses="@_businesses"
+                                         BusinessId="@_businessId"
+                                         BusinessIdChanged="SetBusinessAsync"
+                                         MovementTypeLabel="@_movementTypeLabel"
+                                         BusinessLocked="@_businessLocked"
+                                         Saving="@_saving" />
+
+        <ThirdPartySearchCard AriaLabel="Seleccion de cliente"
+                              Kicker="Cliente de la venta"
+                              SelectedChipText="Cliente seleccionado"
+                              ChangeButtonText="Cambiar cliente"
+                              SearchingText="Buscando clientes..."
+                              ResultsAriaLabel="Resultados de clientes"
+                              InitialsFallback="CL"
+                              ShowCreateButton="true"
+                              CreateButtonText="Nuevo cliente"
+                              CreateButtonDisabled="@(_saving || _creatingCustomer || !_businessId.HasValue)"
+                              OnCreateClick="ToggleNewCustomerForm"
+                              DocumentTypes="@_documentTypes"
+                              Results="@_customerResults"
+                              SelectedThirdParty="@_selectedThirdParty"
+                              DocumentTypeId="@_customerDocumentTypeId"
+                              DocumentTypeIdChanged="@((int? value) => _customerDocumentTypeId = value)"
+                              DocumentNumber="@_customerDocumentNumber"
+                              DocumentNumberChanged="@((string value) => _customerDocumentNumber = value)"
+                              NameSearch="@_customerNameSearch"
+                              NameSearchChanged="@((string value) => _customerNameSearch = value)"
+                              SearchMessage="@_customerSearchMessage"
+                              Searching="@_customerSearching"
+                              Disabled="@IsCustomerSearchDisabled"
+                              OnSearchByDocument="SearchCustomerByDocumentAsync"
+                              OnSearchByName="SearchCustomersByNameAsync"
+                              OnClearSelected="ClearSelectedCustomer"
+                              OnSelectResult="SelectCustomer">
+
+                @if (_showNewCustomerForm)
+                {
+                    <section class="vp-inline-customer-form" aria-label="Crear cliente">
+                        <div class="vp-inline-customer-form-header">
+                            <div>
+                                <span>Cliente nuevo</span>
+                                <h3>Crear tercero desde la venta</h3>
+                                <p>El cliente se guardara como tercero activo del negocio seleccionado y quedara asociado a esta venta.</p>
+                            </div>
+                            <MudButton Variant="Variant.Text" Color="Color.Default" StartIcon="@Icons.Material.Outlined.Close" Disabled="@(_saving || _creatingCustomer)" OnClick="HideNewCustomerForm">
+                                Cerrar
+                            </MudButton>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(_newCustomerMessage))
+                        {
+                            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+                                @_newCustomerMessage
+                            </MudAlert>
+                        }
+
+                        <div class="vp-inline-customer-grid">
+                            <MudSelect T="int?" Label="Tipo de tercero" @bind-Value="_newCustomerThirdPartyTypeId" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" Disabled="@(_saving || _creatingCustomer)">
+                                @foreach (var thirdPartyType in _thirdPartyTypes)
+                                {
+                                    <MudSelectItem T="int?" Value="@((int?)thirdPartyType.Id)">@GetParameterLabel(thirdPartyType)</MudSelectItem>
+                                }
+                            </MudSelect>
+
+                            <MudSelect T="int?" Label="Tipo de documento" @bind-Value="_newCustomerDocumentTypeId" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" Disabled="@(_saving || _creatingCustomer)">
+                                @foreach (var documentType in _documentTypes)
+                                {
+                                    <MudSelectItem T="int?" Value="@((int?)documentType.Id)">@GetParameterLabel(documentType)</MudSelectItem>
+                                }
+                            </MudSelect>
+
+                            <MudTextField T="string" Label="Numero de documento" @bind-Value="_newCustomerDocumentNumber" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="20" Required="true" Disabled="@(_saving || _creatingCustomer)" />
+                            <MudTextField T="string" Label="Nombre / Razon social" @bind-Value="_newCustomerName" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="60" Required="true" Disabled="@(_saving || _creatingCustomer)" />
+
+                            <MudSelect T="int?" Label="Departamento" @bind-Value="_newCustomerDepartmentId" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" Disabled="@(_saving || _creatingCustomer)">
+                                @foreach (var department in _departments)
+                                {
+                                    <MudSelectItem T="int?" Value="@((int?)department.Id)">@GetParameterLabel(department)</MudSelectItem>
+                                }
+                            </MudSelect>
+
+                            <MudSelect T="int?" Label="Ciudad" @bind-Value="_newCustomerCityId" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" Disabled="@(_saving || _creatingCustomer)">
+                                @foreach (var city in _cities)
+                                {
+                                    <MudSelectItem T="int?" Value="@((int?)city.Id)">@GetParameterLabel(city)</MudSelectItem>
+                                }
+                            </MudSelect>
+
+                            <MudTextField T="string" Label="Telefono" @bind-Value="_newCustomerPhone" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="20" Required="true" Disabled="@(_saving || _creatingCustomer)" />
+                            <MudTextField T="string" Label="Direccion" @bind-Value="_newCustomerAddress" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="100" Lines="2" Disabled="@(_saving || _creatingCustomer)" />
+                        </div>
+
+                        <div class="vp-inline-customer-actions">
+                            <MudButton Variant="Variant.Outlined" Color="Color.Default" Disabled="@(_saving || _creatingCustomer)" OnClick="HideNewCustomerForm">
+                                Cancelar
+                            </MudButton>
+                            <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Outlined.Save" Disabled="@(_saving || _creatingCustomer)" OnClick="CreateCustomerAsync">
+                                @if (_creatingCustomer)
+                                {
+                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                    <span>Creando...</span>
+                                }
+                                else
+                                {
+                                    <span>Crear y seleccionar</span>
+                                }
+                            </MudButton>
+                        </div>
+                    </section>
+                }
+        </ThirdPartySearchCard>
+
+        <section class="vp-section-heading">
+            <div>
+                <h2>Productos</h2>
+                <p>Agrega al menos un producto vendido.</p>
+            </div>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add"
+                       Disabled="_saving" OnClick="AddDetail">
+                Agregar producto
+            </MudButton>
+        </section>
+
+        <section class="vp-card vp-table-card" aria-label="Productos de la venta">
+            <div class="vp-table-scroll">
+                <table class="vp-inventory-table vp-transaction-entry-table">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Cantidad</th>
+                            <th>Valor base sin IVA</th>
+                            <th>IVA %</th>
+                            <th>Subtotal</th>
+                            <th>Valor IVA</th>
+                            <th>Total</th>
+                            <th class="vp-inventory-actions-heading">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var detail in _details)
+                        {
+                            <tr>
+                                <td>
+                                    <MudSelect  T="int?" 
+                                                Label="Producto" 
+                                                Value="detail.ProductId"
+                                                ValueChanged="@((int? value) => SetDetailProductAsync(detail, value))"
+                                                Variant="Variant.Outlined" 
+                                                Margin="Margin.Dense" 
+                                                Dense="true" 
+                                                Disabled="_saving">
+                                        @foreach (var product in ProductsForSelectedBusiness)
+                                        {
+                                            <MudSelectItem T="int?" Value="@((int?)product.Id)">
+                                                @GetProductLabel(product)
+                                            </MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </td>
+                                <td>
+                                    <MudNumericField T="decimal" 
+                                                     @bind-Value="detail.Quantity" 
+                                                     Variant="Variant.Outlined"
+                                                     Margin="Margin.Dense" 
+                                                     Min="0" 
+                                                     Disabled="_saving" />
+                                </td>
+                                <td>
+                                    <MudTextField T="string"
+                                                  Value="@FormatSaleUnitValue(detail.UnitValue)"
+                                                  Variant="Variant.Outlined"
+                                                  Margin="Margin.Dense"
+                                                  Disabled="true" />
+                                </td>
+                                <td>
+                                    <MudTextField T="string"
+                                                  Value="@($"{detail.VatPercentage:N2}%")"
+                                                  Variant="Variant.Outlined"
+                                                  Margin="Margin.Dense"
+                                                  Disabled="true" />
+                                </td>
+                                <td>@FormatMoney(detail.Subtotal)</td>
+                                <td>@FormatMoney(detail.VatValue)</td>
+                                <td><strong>@FormatMoney(detail.Total)</strong></td>
+                                <td>
+                                    <div class="vp-inventory-row-actions">
+                                        <MudTooltip Text="Quitar producto">
+                                            <MudIconButton Icon="@Icons.Material.Outlined.Delete" 
+                                                           Size="Size.Small"
+                                                           Color="Color.Error" Disabled="@(_saving || _details.Count == 1)"
+                                                           OnClick="@(() => RemoveDetail(detail))" />
+                                        </MudTooltip>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="vp-section-heading">
+            <div>
+                <h2>Pagos</h2>
+                <p>Agrega los medios de pago usados en la venta.</p>
+            </div>
+            <MudButton Variant="Variant.Outlined" 
+                       Color="Color.Primary" 
+                       StartIcon="@Icons.Material.Outlined.AddCard"
+                       Disabled="_saving" 
+                       OnClick="AddPayment">
+                Agregar pago
+            </MudButton>
+        </section>
+
+        <section class="vp-card vp-table-card" aria-label="Pagos de la venta">
+            <div class="vp-table-scroll">
+                <table class="vp-inventory-table vp-transaction-entry-table">
+                    <thead>
+                        <tr>
+                            <th>Medio de pago</th>
+                            <th>Valor recibido</th>
+                            <th>Valor cambio</th>
+                            <th>Valor aplicado</th>
+                            <th class="vp-inventory-actions-heading">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var payment in _payments)
+                        {
+                            <tr>
+                                <td>
+                                    <MudSelect T="int?" Label="Medio de pago" @bind-Value="payment.PaymentMethodId"
+                                               Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Disabled="_saving">
+                                        @foreach (var paymentMethod in _paymentMethods)
+                                        {
+                                            <MudSelectItem T="int?" Value="@((int?)paymentMethod.Id)">
+                                                @GetParameterLabel(paymentMethod)</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                    </td>
+                                    <td>
+                                        <MudNumericField T="decimal" @bind-Value="payment.ReceivedValue" Variant="Variant.Outlined"
+                                                         Margin="Margin.Dense" Min="0" Disabled="_saving" />
+                                    </td>
+                                    <td>
+                                        <MudNumericField T="decimal" @bind-Value="payment.ChangeValue" Variant="Variant.Outlined"
+                                                         Margin="Margin.Dense" Min="0" Disabled="_saving" />
+                                    </td>
+                                    <td><strong>@FormatMoney(payment.AppliedValue)</strong></td>
+                                    <td>
+                                        <div class="vp-inventory-row-actions">
+                                            <MudTooltip Text="Quitar pago">
+                                                <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small"
+                                                               Color="Color.Error" Disabled="@(_saving || _payments.Count == 1)"
+                                                               OnClick="@(() => RemovePayment(payment))" />
+                                            </MudTooltip>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <TransactionTotals Subtotal="Subtotal"
+                               VatValue="VatValue"
+                               Total="Total"
+                               Difference="Difference"
+                               TotalHelper="Venta" />
+
+            <TransactionActions Saving="_saving"
+                                DisableSave="@(_creatingCustomer || HasInvalidSaleValue)"
+                                SaveText="Registrar venta"
+                                OnCancel="GoBack"
+                                OnSave="SaveAsync" />
+        }
+    </main>
+
+@code {
+    private readonly List<SaleDetailInput> _details = new() { new SaleDetailInput() };
+    private readonly List<SalePaymentInput> _payments = new() { new SalePaymentInput() };
+    private IReadOnlyList<BusinessDto> _businesses = Array.Empty<BusinessDto>();
+    private IReadOnlyList<ProductDto> _products = Array.Empty<ProductDto>();
+    private IReadOnlyList<ParameterOptionDto> _paymentMethods = Array.Empty<ParameterOptionDto>();
+    private IReadOnlyList<ParameterOptionDto> _documentTypes = Array.Empty<ParameterOptionDto>();
+    private IReadOnlyList<ParameterOptionDto> _thirdPartyTypes = Array.Empty<ParameterOptionDto>();
+    private IReadOnlyList<ParameterOptionDto> _departments = Array.Empty<ParameterOptionDto>();
+    private IReadOnlyList<ParameterOptionDto> _cities = Array.Empty<ParameterOptionDto>();
+    private IReadOnlyList<ThirdPartyDto> _customerResults = Array.Empty<ThirdPartyDto>();
+    private ThirdPartyDto? _selectedThirdParty;
+    private AuthUserDto? _currentUser;
+    private int? _businessId;
+    private int? _thirdPartyId;
+    private int? _movementTypeId;
+    private string _movementTypeLabel = string.Empty;
+    private int? _customerDocumentTypeId;
+    private int? _newCustomerThirdPartyTypeId;
+    private int? _newCustomerDocumentTypeId;
+    private int? _newCustomerDepartmentId;
+    private int? _newCustomerCityId;
+    private string _customerDocumentNumber = string.Empty;
+    private string _customerNameSearch = string.Empty;
+    private string _customerSearchMessage = string.Empty;
+    private string _newCustomerDocumentNumber = string.Empty;
+    private string _newCustomerName = string.Empty;
+    private string _newCustomerPhone = string.Empty;
+    private string? _newCustomerAddress;
+    private string _newCustomerMessage = string.Empty;
+    private bool _catalogLoading;
+    private bool _customerSearching;
+    private bool _showNewCustomerForm;
+    private bool _creatingCustomer;
+    private bool _businessLocked;
+    private bool _saving;
+    private bool _accessDenied;
+    private string _validationMessage = string.Empty;
+
+    private IEnumerable<ProductDto> ProductsForSelectedBusiness => _businessId.HasValue
+        ? _products.Where(product => product.BusinessId == _businessId.Value || !product.BusinessId.HasValue)
+        : _products;
+
+    private decimal Subtotal => _details.Sum(detail => detail.Subtotal);
+    private decimal VatValue => _details.Sum(detail => detail.VatValue);
+    private decimal Total => _details.Sum(detail => detail.Total);
+    private decimal TotalPaid => _payments.Sum(payment => payment.AppliedValue);
+    private decimal Difference => Total - TotalPaid;
+    private bool HasInvalidSaleValue => _details.Any(detail => detail.ProductId.HasValue && detail.UnitValue <= 0);
+    private bool IsCustomerSearchDisabled => _saving || _customerSearching || _creatingCustomer;
+    private const string MissingSaleValueMessage = "Este producto aún no tiene valor de venta calculado. Registre una compra antes de venderlo.";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await PermissionState.LoadAsync();
+
+        _accessDenied = !PermissionState.HasPermission("ventas.crear");
+
+        if (_accessDenied)
+            return;
+
+        await LoadInitialDataAsync();
+    }
+
+    private async Task LoadInitialDataAsync()
+    {
+        _catalogLoading = true;
+        _validationMessage = string.Empty;
+
+        try
+        {
+            await LoadCurrentUserAsync();
+            await LoadCatalogsAsync();
+            await LoadSaleMovementTypeAsync();
+
+            ApplyCurrentUserBusiness();
+        }
+        finally
+        {
+            _catalogLoading = false;
+        }
+    }
+
+    private async Task LoadCurrentUserAsync()
+    {
+        var response = await AuthService.GetCurrentUserAsync();
+    
+        if (!response.IsSuccess || response.Data is null)
+        {
+            await HandleFailureAsync(
+                string.IsNullOrWhiteSpace(response.Message)
+                    ? "No fue posible obtener el usuario autenticado."
+                    : response.Message);
+    
+            return;
+        }
+    
+        _currentUser = response.Data;
+    }
+
+    private async Task LoadSaleMovementTypeAsync()
+    {
+        var response = await ParameterService.GetByCodeAsync("MOV-KDX-VTA");
+
+        if (!response.IsSuccess || response.Data is null)
+        {
+            await HandleFailureAsync(
+                string.IsNullOrWhiteSpace(response.Message)
+                    ? "No fue posible cargar el tipo de movimiento Kardex para ventas."
+                    : response.Message);
+            return;
+        }
+
+        _movementTypeId = response.Data.Id;
+        _movementTypeLabel = response.Data.Description;
+    }
+
+    private async Task LoadCatalogsAsync()
+    {
+        var businessTask = BusinessService.ListAsync(new BusinessListFilterDto { Status = "A" });
+        var productTask = ProductService.ListAsync(new ProductListFilterDto { Status = "A" });
+        var paymentTask = ParameterService.ListByClassCodeAsync("MET-PAGO");
+        var documentTypeTask = ParameterService.ListByClassCodeAsync("TIP-DOC");
+        var thirdPartyTypeTask = ParameterService.ListByClassCodeAsync("TIP-TER");
+        var departmentTask = ParameterService.ListByClassCodeAsync("DEP");
+        var cityTask = ParameterService.ListByClassCodeAsync("CIU");
+
+        await Task.WhenAll(
+            businessTask,
+            productTask,
+            paymentTask,
+            documentTypeTask,
+            thirdPartyTypeTask,
+            departmentTask,
+            cityTask
+        );
+
+        if (!businessTask.Result.IsSuccess)
+        {
+            await HandleFailureAsync(businessTask.Result.Message);
+            return;
+        }
+
+        if (!productTask.Result.IsSuccess)
+        {
+            await HandleFailureAsync(productTask.Result.Message);
+            return;
+        }
+
+        if (!paymentTask.Result.IsSuccess)
+        {
+            await HandleFailureAsync(paymentTask.Result.Message);
+            return;
+        }
+
+        if (!documentTypeTask.Result.IsSuccess)
+        {
+            await HandleFailureAsync(documentTypeTask.Result.Message);
+            return;
+        }
+
+        if (!thirdPartyTypeTask.Result.IsSuccess)
+        {
+            await HandleFailureAsync(thirdPartyTypeTask.Result.Message);
+            return;
+        }
+
+        if (!departmentTask.Result.IsSuccess)
+        {
+            await HandleFailureAsync(departmentTask.Result.Message);
+            return;
+        }
+
+        if (!cityTask.Result.IsSuccess)
+        {
+            await HandleFailureAsync(cityTask.Result.Message);
+            return;
+        }
+
+        _businesses = businessTask.Result.Data ?? Array.Empty<BusinessDto>();
+        _products = productTask.Result.Data ?? Array.Empty<ProductDto>();
+        _paymentMethods = paymentTask.Result.Data ?? Array.Empty<ParameterOptionDto>();
+        _documentTypes = documentTypeTask.Result.Data ?? Array.Empty<ParameterOptionDto>();
+        _thirdPartyTypes = thirdPartyTypeTask.Result.Data ?? Array.Empty<ParameterOptionDto>();
+        _departments = departmentTask.Result.Data ?? Array.Empty<ParameterOptionDto>();
+        _cities = cityTask.Result.Data ?? Array.Empty<ParameterOptionDto>();
+    }
+
+    private void ApplyCurrentUserBusiness()
+    {
+        if (_currentUser?.BusinessId is not > 0)
+        {
+            _businessLocked = false;
+            return;
+        }
+
+        _businessLocked = true;
+        _businessId = _currentUser.BusinessId.Value;
+
+        if (!_businesses.Any(business => business.Id == _businessId.Value))
+        {
+            _businesses = _businesses.Concat(new[]
+            {
+                new BusinessDto
+                {
+                    Id = _businessId.Value,
+                    Name = string.IsNullOrWhiteSpace(_currentUser.BusinessName) ? $"Negocio #{_businessId.Value}" : _currentUser.BusinessName,
+                    Status = "A"
+                }
+            }).ToArray();
+        }
+    }
+
+    private Task SetBusinessAsync(int? businessId)
+    {
+        if (_businessLocked && _currentUser?.BusinessId is > 0)
+        {
+            _businessId = _currentUser.BusinessId.Value;
+            return Task.CompletedTask;
+        }
+
+        _businessId = businessId;
+        ClearSelectedCustomer();
+
+        foreach (var detail in _details.Where(detail => detail.ProductId.HasValue && !ProductsForSelectedBusiness.Any(product =>
+product.Id == detail.ProductId.Value)))
+        {
+            detail.ProductId = null;
+            detail.ProductName = string.Empty;
+            detail.UnitValue = 0;
+            detail.VatPercentage = 0;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task SearchCustomerByDocumentAsync()
+    {
+        if (!EnsureBusinessSelected())
+            return;
+
+        if (!_customerDocumentTypeId.HasValue || _customerDocumentTypeId.Value <= 0)
+        {
+            SetCustomerSearchMessage("Selecciona el tipo de documento.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_customerDocumentNumber))
+        {
+            SetCustomerSearchMessage("Ingresa el numero de documento.");
+            return;
+        }
+
+        _customerSearching = true;
+        _customerSearchMessage = string.Empty;
+        _customerResults = Array.Empty<ThirdPartyDto>();
+
+        try
+        {
+            var documentNumber = _customerDocumentNumber.Trim();
+            var response = await ThirdPartyService.ListByBusinessAsync(_businessId!.Value, new ThirdPartyBusinessListFilterDto
+            {
+                DocumentTypeId = _customerDocumentTypeId.Value,
+                DocumentNumber = documentNumber,
+                Status = "A"
+            });
+
+            if (!response.IsSuccess)
+            {
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            var exactMatch = (response.Data ?? Array.Empty<ThirdPartyBusinessDto>())
+                .FirstOrDefault(customer => customer.DocumentTypeId == _customerDocumentTypeId.Value
+                    && string.Equals(customer.DocumentNumber?.Trim(), documentNumber, StringComparison.OrdinalIgnoreCase));
+
+            if (exactMatch is null)
+            {
+                SetCustomerSearchMessage("No se encontró un cliente con ese documento para el negocio seleccionado.");
+                return;
+            }
+
+            SelectCustomer(exactMatch.ToThirdParty());
+            Snackbar.Add("Cliente seleccionado correctamente.", Severity.Success);
+        }
+        finally
+        {
+            _customerSearching = false;
+        }
+    }
+
+    private async Task SearchCustomersByNameAsync()
+    {
+        if (!EnsureBusinessSelected())
+            return;
+
+        if (string.IsNullOrWhiteSpace(_customerNameSearch))
+        {
+            SetCustomerSearchMessage("Ingresa el nombre del cliente.");
+            return;
+        }
+
+        _customerSearching = true;
+        _customerSearchMessage = string.Empty;
+        _customerResults = Array.Empty<ThirdPartyDto>();
+
+        try
+        {
+            var response = await ThirdPartyService.ListByBusinessAsync(_businessId!.Value, new ThirdPartyBusinessListFilterDto
+            {
+                Name = _customerNameSearch.Trim(),
+                Status = "A"
+            });
+
+            if (!response.IsSuccess)
+            {
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            _customerResults = (response.Data ?? Array.Empty<ThirdPartyBusinessDto>())
+                .Select(customer => customer.ToThirdParty())
+                .ToArray();
+
+            if (_customerResults.Count == 0)
+            {
+                SetCustomerSearchMessage("No se encontraron clientes activos con ese nombre para el negocio seleccionado.");
+            }
+        }
+        finally
+        {
+            _customerSearching = false;
+        }
+    }
+
+    private bool EnsureBusinessSelected()
+    {
+        if (_businessId.HasValue && _businessId.Value > 0)
+        {
+            return true;
+        }
+
+        SetCustomerSearchMessage("Selecciona primero el negocio de la venta.");
+        Snackbar.Add("Selecciona primero el negocio de la venta.", Severity.Warning);
+        return false;
+    }
+
+    private void SelectCustomer(ThirdPartyDto customer)
+    {
+        _selectedThirdParty = customer;
+        _thirdPartyId = customer.Id;
+        _customerResults = Array.Empty<ThirdPartyDto>();
+        _customerSearchMessage = string.Empty;
+
+        if (_validationMessage == "El cliente / tercero es obligatorio.")
+        {
+            _validationMessage = string.Empty;
+        }
+    }
+
+    private void ClearSelectedCustomer()
+    {
+        _selectedThirdParty = null;
+        _thirdPartyId = null;
+        _customerResults = Array.Empty<ThirdPartyDto>();
+        _customerSearchMessage = string.Empty;
+    }
+
+    private void SetCustomerSearchMessage(string message)
+    {
+        _customerSearchMessage = message;
+        _customerResults = Array.Empty<ThirdPartyDto>();
+    }
+
+    private void ToggleNewCustomerForm()
+    {
+        if (!EnsureBusinessSelected())
+        {
+            return;
+        }
+
+        _showNewCustomerForm = !_showNewCustomerForm;
+        _newCustomerMessage = string.Empty;
+
+        if (_showNewCustomerForm)
+        {
+            PrefillNewCustomerFromSearch();
+        }
+    }
+
+    private void HideNewCustomerForm()
+    {
+        _showNewCustomerForm = false;
+        _newCustomerMessage = string.Empty;
+    }
+
+    private void PrefillNewCustomerFromSearch()
+    {
+        _newCustomerDocumentTypeId ??= _customerDocumentTypeId;
+
+        if (string.IsNullOrWhiteSpace(_newCustomerDocumentNumber) && !string.IsNullOrWhiteSpace(_customerDocumentNumber))
+        {
+            _newCustomerDocumentNumber = _customerDocumentNumber.Trim();
+        }
+
+        if (string.IsNullOrWhiteSpace(_newCustomerName) && !string.IsNullOrWhiteSpace(_customerNameSearch))
+        {
+            _newCustomerName = _customerNameSearch.Trim();
+        }
+    }
+
+    private async Task CreateCustomerAsync()
+    {
+        if (!ValidateNewCustomer())
+        {
+            Snackbar.Add(_newCustomerMessage, Severity.Error);
+            return;
+        }
+
+        _creatingCustomer = true;
+        _newCustomerMessage = string.Empty;
+
+        try
+        {
+            var request = new ThirdPartyCreateForBusinessDto
+            {
+                BusinessId = _businessId!.Value,
+                ThirdPartyTypeId = _newCustomerThirdPartyTypeId!.Value,
+                DocumentTypeId = _newCustomerDocumentTypeId!.Value,
+                DocumentNumber = _newCustomerDocumentNumber.Trim(),
+                Name = _newCustomerName.Trim(),
+                DepartmentId = _newCustomerDepartmentId!.Value,
+                CityId = _newCustomerCityId!.Value,
+                Address = NormalizeOptional(_newCustomerAddress),
+                Phone = _newCustomerPhone.Trim(),
+                Status = "A"
+            };
+
+            var response = await ThirdPartyService.CreateForBusinessAsync(request);
+            if (!response.IsSuccess)
+            {
+                await HandleNewCustomerFailureAsync(response.Message);
+                return;
+            }
+
+            var createdId = response.Data?.ThirdPartyId ?? 0;
+            if (createdId <= 0)
+            {
+                await HandleNewCustomerFailureAsync("El servidor no devolvio el identificador del cliente creado.");
+                return;
+            }
+
+            var createdResponse = await ThirdPartyService.GetByIdAsync(createdId);
+            if (createdResponse.IsSuccess && createdResponse.Data is not null)
+            {
+                SelectCustomer(createdResponse.Data);
+            }
+            else
+            {
+                SelectCustomer(BuildCreatedCustomerFallback(createdId, request));
+            }
+
+            _showNewCustomerForm = false;
+            _customerSearchMessage = string.Empty;
+            Snackbar.Add(string.IsNullOrWhiteSpace(response.Message) ? "Cliente creado y seleccionado correctamente." : response.Message, Severity.Success);
+        }
+        finally
+        {
+            _creatingCustomer = false;
+        }
+    }
+
+    private bool ValidateNewCustomer()
+    {
+        _newCustomerMessage = string.Empty;
+
+        if (!_businessId.HasValue || _businessId.Value <= 0) _newCustomerMessage = "Selecciona primero el negocio de la venta.";
+        else if (!_newCustomerThirdPartyTypeId.HasValue) _newCustomerMessage = "El tipo de tercero es obligatorio.";
+        else if (!_newCustomerDocumentTypeId.HasValue) _newCustomerMessage = "El tipo de documento es obligatorio.";
+        else if (string.IsNullOrWhiteSpace(_newCustomerDocumentNumber)) _newCustomerMessage = "El numero de documento es obligatorio.";
+        else if (_newCustomerDocumentNumber.Trim().Length > 20) _newCustomerMessage = "El numero de documento no puede superar 20 caracteres.";
+        else if (string.IsNullOrWhiteSpace(_newCustomerName)) _newCustomerMessage = "El nombre del cliente es obligatorio.";
+        else if (_newCustomerName.Trim().Length > 60) _newCustomerMessage = "El nombre no puede superar 60 caracteres.";
+        else if (!_newCustomerDepartmentId.HasValue) _newCustomerMessage = "El departamento es obligatorio.";
+        else if (!_newCustomerCityId.HasValue) _newCustomerMessage = "La ciudad es obligatoria.";
+        else if (string.IsNullOrWhiteSpace(_newCustomerPhone)) _newCustomerMessage = "El telefono es obligatorio.";
+        else if (_newCustomerPhone.Trim().Length > 20) _newCustomerMessage = "El telefono no puede superar 20 caracteres.";
+        else if (!string.IsNullOrWhiteSpace(_newCustomerAddress) && _newCustomerAddress.Trim().Length > 100) _newCustomerMessage = "La direccion no puede superar 100 caracteres.";
+
+        return string.IsNullOrWhiteSpace(_newCustomerMessage);
+    }
+
+    private Task HandleNewCustomerFailureAsync(string? message)
+    {
+        var resolvedMessage = string.IsNullOrWhiteSpace(message)
+            ? "No fue posible crear el cliente."
+            : message;
+
+        _newCustomerMessage = resolvedMessage;
+        Snackbar.Add(resolvedMessage, Severity.Error);
+        return Task.CompletedTask;
+    }
+
+    private ThirdPartyDto BuildCreatedCustomerFallback(int id, ThirdPartyCreateForBusinessDto request)
+    {
+        var documentType = _documentTypes.FirstOrDefault(item => item.Id == request.DocumentTypeId);
+        var department = _departments.FirstOrDefault(item => item.Id == request.DepartmentId);
+        var city = _cities.FirstOrDefault(item => item.Id == request.CityId);
+        var thirdPartyType = _thirdPartyTypes.FirstOrDefault(item => item.Id == request.ThirdPartyTypeId);
+
+        return new ThirdPartyDto
+        {
+            Id = id,
+            DocumentTypeId = request.DocumentTypeId,
+            DocumentTypeName = documentType?.Description ?? string.Empty,
+            DocumentNumber = request.DocumentNumber,
+            Name = request.Name,
+            DepartmentId = request.DepartmentId,
+            DepartmentName = department?.Description ?? string.Empty,
+            CityId = request.CityId,
+            CityName = city?.Description ?? string.Empty,
+            Address = request.Address,
+            Phone = request.Phone,
+            Status = request.Status,
+            CreatedAt = DateTime.Now,
+            ThirdPartyTypeId = request.ThirdPartyTypeId,
+            ThirdPartyTypeName = thirdPartyType?.Description ?? string.Empty
+        };
+    }
+
+    private Task SetDetailProductAsync(SaleDetailInput detail, int? productId)
+    {
+        detail.ProductId = productId;
+        var product = _products.FirstOrDefault(item => item.Id == productId);
+        detail.ProductName = product?.Name ?? string.Empty;
+
+        if (product is not null)
+        {
+            detail.UnitValue = product.SaleValue.GetValueOrDefault();
+            detail.VatPercentage = product.VatPercentage;
+
+            if (product.SaleValue.GetValueOrDefault() <= 0)
+            {
+                _validationMessage = MissingSaleValueMessage;
+                Snackbar.Add(MissingSaleValueMessage, Severity.Warning);
+            }
+            else if (_validationMessage == MissingSaleValueMessage)
+            {
+                _validationMessage = string.Empty;
+            }
+        }
+        else
+        {
+            detail.UnitValue = 0;
+            detail.VatPercentage = 0;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private void AddDetail() => _details.Add(new SaleDetailInput());
+
+    private void RemoveDetail(SaleDetailInput detail)
+    {
+        if (_details.Count > 1)
+        {
+            _details.Remove(detail);
+        }
+    }
+
+    private void AddPayment() => _payments.Add(new SalePaymentInput());
+
+    private void RemovePayment(SalePaymentInput payment)
+    {
+        if (_payments.Count > 1)
+        {
+            _payments.Remove(payment);
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!ValidateRequest())
+        {
+            Snackbar.Add(_validationMessage, Severity.Error);
+            return;
+        }
+
+        _saving = true;
+        _validationMessage = string.Empty;
+
+        try
+        {
+            var request = new SaleCreateDto
+            {
+                BusinessId = _businessId!.Value,
+                ThirdPartyId = _thirdPartyId!.Value,
+                KardexMovementTypeId = _movementTypeId!.Value,
+                Details = _details.Select(detail => new SaleCreateDetailDto
+                {
+                    ProductId = detail.ProductId!.Value,
+                    Quantity = detail.Quantity,
+                    UnitValue = detail.UnitValue,
+                    VatPercentage = detail.VatPercentage
+                }).ToArray(),
+                Payments = _payments.Select(payment => new SaleCreatePaymentDto
+                {
+                    PaymentMethodId = payment.PaymentMethodId!.Value,
+                    ReceivedValue = payment.ReceivedValue,
+                    ChangeValue = payment.ChangeValue
+                }).ToArray()
+            };
+
+            var response = await SaleService.CreateAsync(request);
+            if (!response.IsSuccess)
+            {
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            Snackbar.Add(string.IsNullOrWhiteSpace(response.Message) ? "Venta registrada correctamente." : response.Message,
+Severity.Success);
+            var saleId = response.Data?.SaleId ?? 0;
+            NavigationManager.NavigateTo(saleId > 0 ? $"/ventas/{saleId}" : "/ventas");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private bool ValidateRequest()
+    {
+        _validationMessage = string.Empty;
+
+        if (!_businessId.HasValue || _businessId.Value <= 0)
+            return FailValidation("El negocio es obligatorio.");
+
+        if (!_thirdPartyId.HasValue || _thirdPartyId.Value <= 0)
+            return FailValidation("El cliente / tercero es obligatorio.");
+
+        if (!_movementTypeId.HasValue || _movementTypeId.Value <= 0)
+            return FailValidation("El tipo de movimiento Kardex es obligatorio.");
+
+        if (_details.Count == 0)
+            return FailValidation("Agrega al menos un producto.");
+
+        foreach (var detail in _details)
+        {
+            if (!detail.ProductId.HasValue || detail.ProductId.Value <= 0)
+                return FailValidation("Selecciona el producto en todos los detalles.");
+            if (detail.Quantity <= 0)
+                return FailValidation("La cantidad debe ser mayor que cero.");
+            if (detail.UnitValue <= 0)
+                return FailValidation(MissingSaleValueMessage);
+            if (detail.VatPercentage < 0)
+                return FailValidation("El porcentaje de IVA no puede ser negativo.");
+        }
+
+        if (_payments.Count == 0)
+            return FailValidation("Agrega al menos un pago.");
+
+        foreach (var payment in _payments)
+        {
+            if (!payment.PaymentMethodId.HasValue || payment.PaymentMethodId.Value <= 0)
+                return FailValidation("Selecciona el medio de pago en todos los pagos.");
+            if (payment.ReceivedValue < 0)
+                return FailValidation("El valor recibido no puede ser negativo.");
+            if (payment.ChangeValue < 0)
+                return FailValidation("El valor cambio no puede ser negativo.");
+            if (payment.ChangeValue > payment.ReceivedValue)
+                return FailValidation("El valor cambio no puede ser mayor que el valor recibido.");
+        }
+
+        return true;
+    }
+
+    private bool FailValidation(string message)
+    {
+        _validationMessage = message;
+        return false;
+    }
+
+    private async Task HandleFailureAsync(string? message)
+    {
+        var resolvedMessage = string.IsNullOrWhiteSpace(message)
+            ? "No fue posible completar la operación."
+            : message;
+
+        _validationMessage = resolvedMessage;
+        Snackbar.Add(resolvedMessage, Severity.Error);
+
+        await Task.CompletedTask;
+    }
+
+    private void GoBack() => NavigationManager.NavigateTo("/ventas");
+
+    private static string GetProductLabel(ProductDto product)
+    {
+        var label = string.IsNullOrWhiteSpace(product.ExternalId) ? product.Name : $"{product.Name} ({product.ExternalId})";
+        return product.SaleValue.GetValueOrDefault() > 0 ? label : $"{label} - Pendiente de compra";
+    }
+
+    private static string GetParameterLabel(ParameterOptionDto option) =>
+        string.IsNullOrWhiteSpace(option.Code) ? option.Description : $"{option.Description}";
+
+    private static string ResolveText(string? value, string fallback) => string.IsNullOrWhiteSpace(value) ? fallback : value;
+
+    private static string? NormalizeOptional(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string GetInitials(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "CL";
+        }
+
+        var parts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length == 0)
+        {
+            return "CL";
+        }
+
+        return string.Concat(parts.Take(2).Select(part => char.ToUpperInvariant(part[0])));
+    }
+
+    private static string FormatMoney(decimal value) => value.ToString("C2", CultureInfo.GetCultureInfo("es-CO"));
+
+    private static string FormatSaleUnitValue(decimal value) =>
+        value > 0 ? FormatMoney(value) : "Pendiente de compra";
+
+    private sealed class SaleDetailInput
+    {
+        public int? ProductId { get; set; }
+        public string ProductName { get; set; } = string.Empty;
+        public decimal Quantity { get; set; } = 1;
+        public decimal UnitValue { get; set; }
+        public decimal VatPercentage { get; set; }
+        public decimal Subtotal => Quantity * UnitValue;
+        public decimal VatValue => Subtotal * VatPercentage / 100;
+        public decimal Total => Subtotal + VatValue;
+    }
+
+    private sealed class SalePaymentInput
+    {
+        public int? PaymentMethodId { get; set; }
+        public decimal ReceivedValue { get; set; }
+        public decimal ChangeValue { get; set; }
+        public decimal AppliedValue => ReceivedValue - ChangeValue;
+    }
+}

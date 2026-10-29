@@ -1,0 +1,599 @@
+@page "/negocios/{BusinessId:int}"
+@attribute [Authorize]
+@inject IBusinessService BusinessService
+@inject IThirdPartyService ThirdPartyService
+@inject IAuthService AuthService
+@inject PermissionStateService PermissionState
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<PageTitle>Detalle del negocio | VentasPro</PageTitle>
+
+<main class="vp-page vp-transaction-page vp-thirdparty-page">
+    <PageHeader Kicker="Negocios" Title="Detalle del negocio" Subtitle="Consulta el negocio y administra sus terceros asociados.">
+        <Action>
+            <MudButton Variant="Variant.Outlined" Color="Color.Default" StartIcon="@Icons.Material.Outlined.ArrowBack" OnClick="GoBack">
+                Volver
+            </MudButton>
+        </Action>
+    </PageHeader>
+
+    @if (_accessDenied)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+            No tienes permisos para consultar este negocio.
+        </MudAlert>
+    }
+    else if (_loading)
+    {
+        <div class="vp-card vp-transaction-loading">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            <MudText Typo="Typo.body2" Class="vp-muted">Consultando negocio...</MudText>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+            @_errorMessage
+        </MudAlert>
+    }
+    else if (_business is null)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.DomainDisabled" Title="Negocio no encontrado" Message="El negocio solicitado no existe o no está disponible." />
+    }
+    else
+    {
+        <section class="vp-card vp-thirdparty-profile">
+            <div class="vp-thirdparty-profile-main">
+                <div class="vp-thirdparty-avatar" aria-hidden="true">@GetInitials(_business.Name)</div>
+                <div class="vp-thirdparty-profile-copy">
+                    <span class="vp-thirdparty-eyebrow">
+                        <MudIcon Icon="@Icons.Material.Outlined.Business" Size="Size.Small" />
+                        Negocio #@_business.Id
+                    </span>
+                    <h2>@_business.Name</h2>
+                    <div class="vp-thirdparty-document-line">
+                        <MudIcon Icon="@Icons.Material.Outlined.Badge" Size="Size.Small" />
+                        <span>NIT</span>
+                        <strong>@_business.Nit</strong>
+                    </div>
+                </div>
+            </div>
+
+            <aside class="vp-thirdparty-profile-side" aria-label="Resumen del negocio">
+                <div class="vp-thirdparty-side-stat">
+                    <span>Estado</span>
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@GetStatusColor(_business.Status)">
+                        @ResolveStatus(_business.Status)
+                    </MudChip>
+                </div>
+                <div class="vp-thirdparty-side-stat">
+                    <span>Terceros asociados</span>
+                    <strong>@_associatedThirdParties.Count.ToString("N0")</strong>
+                </div>
+            </aside>
+        </section>
+
+        <section class="vp-thirdparty-content-grid">
+            <div class="vp-thirdparty-detail-page">
+                <article class="vp-card vp-thirdparty-panel">
+                    <header class="vp-thirdparty-panel-header">
+                        <div class="vp-thirdparty-panel-title">
+                            <span class="vp-thirdparty-panel-icon">
+                                <MudIcon Icon="@Icons.Material.Outlined.Storefront" Size="Size.Small" />
+                            </span>
+                            <div>
+                                <h3>Información del negocio</h3>
+                                <p>Datos principales registrados para operar en el sistema.</p>
+                            </div>
+                        </div>
+                    </header>
+
+                    <div class="vp-thirdparty-info-grid">
+                        <div class="vp-thirdparty-info-card">
+                            <span class="vp-thirdparty-info-label">
+                                <MudIcon Icon="@Icons.Material.Outlined.Fingerprint" Size="Size.Small" />
+                                Identificador
+                            </span>
+                            <strong class="vp-thirdparty-info-value">#@_business.Id</strong>
+                        </div>
+                        <div class="vp-thirdparty-info-card">
+                            <span class="vp-thirdparty-info-label">
+                                <MudIcon Icon="@Icons.Material.Outlined.Badge" Size="Size.Small" />
+                                NIT
+                            </span>
+                            <strong class="vp-thirdparty-info-value">@_business.Nit</strong>
+                        </div>
+                        <div class="vp-thirdparty-info-card wide">
+                            <span class="vp-thirdparty-info-label">
+                                <MudIcon Icon="@Icons.Material.Outlined.Business" Size="Size.Small" />
+                                Nombre
+                            </span>
+                            <strong class="vp-thirdparty-info-value">@_business.Name</strong>
+                        </div>
+                        <div class="vp-thirdparty-info-card">
+                            <span class="vp-thirdparty-info-label">
+                                <MudIcon Icon="@Icons.Material.Outlined.Phone" Size="Size.Small" />
+                                Teléfono
+                            </span>
+                            <strong class="vp-thirdparty-info-value">@ResolveText(_business.Phone, "Sin teléfono registrado")</strong>
+                        </div>
+                        <div class="vp-thirdparty-info-card wide">
+                            <span class="vp-thirdparty-info-label">
+                                <MudIcon Icon="@Icons.Material.Outlined.LocationOn" Size="Size.Small" />
+                                Dirección
+                            </span>
+                            <strong class="vp-thirdparty-info-value">@ResolveText(_business.Address, "Sin dirección registrada")</strong>
+                        </div>
+                    </div>
+                </article>
+            </div>
+
+            <aside class="vp-thirdparty-rail">
+                <article class="vp-card vp-thirdparty-status-card @GetStatusCardClass(_business.Status)">
+                    <h3>Estado operativo</h3>
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="@GetStatusColor(_business.Status)">
+                        @ResolveStatus(_business.Status)
+                    </MudChip>
+                    <p>@(IsActive(_business.Status) ? "El negocio está habilitado para operar." : "El negocio está inactivo.")</p>
+                </article>
+            </aside>
+        </section>
+
+        <section class="vp-section-heading">
+            <div>
+                <h2>Terceros asociados</h2>
+                <p>Clientes, proveedores y terceros habilitados para este negocio.</p>
+            </div>
+            @if (_canCreateThirdParties)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Outlined.PersonAddAlt" OnClick="GoToCreateAssociatedThirdParty">
+                    Crear tercero nuevo
+                </MudButton>
+            }
+            @if (CanUseGlobalThirdPartyCatalog)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PersonAdd" OnClick="ToggleGlobalSearch">
+                    Asociar tercero existente
+                </MudButton>
+            }
+        </section>
+
+        @if (_showGlobalSearch)
+        {
+            <section class="vp-card vp-transaction-filter vp-thirdparty-filter" aria-label="Buscar tercero global">
+                <div class="vp-inline-customer-form-header">
+                    <div>
+                        <span>Catálogo global de terceros</span>
+                        <h3>Buscar tercero global</h3>
+                        <p>Busca un tercero existente y asígnalo a este negocio sin duplicarlo.</p>
+                    </div>
+                    <MudButton Variant="Variant.Text" Color="Color.Default" StartIcon="@Icons.Material.Outlined.Close" Disabled="@_globalSearching" OnClick="ToggleGlobalSearch">
+                        Cerrar
+                    </MudButton>
+                </div>
+
+                <div class="vp-thirdparty-filter-grid">
+                    <MudTextField T="string" Label="Número documento" @bind-Value="_globalFilter.DocumentNumber" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="20" Disabled="@_globalSearching" />
+                    <MudTextField T="string" Label="Nombre" @bind-Value="_globalFilter.Name" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="60" Disabled="@_globalSearching" />
+                    <MudTextField T="string" Label="Teléfono" @bind-Value="_globalFilter.Phone" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="20" Disabled="@_globalSearching" />
+                    <div class="vp-transaction-filter-actions">
+                        <MudButton Variant="Variant.Outlined" Color="Color.Default" Disabled="@_globalSearching" StartIcon="@Icons.Material.Outlined.FilterAltOff" OnClick="ClearGlobalSearchAsync">
+                            Limpiar
+                        </MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@_globalSearching" StartIcon="@Icons.Material.Outlined.Search" OnClick="SearchGlobalThirdPartiesAsync">
+                            Buscar
+                        </MudButton>
+                    </div>
+                </div>
+
+                @if (_globalSearching)
+                {
+                    <div class="vp-card vp-transaction-loading mt-4">
+                        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+                        <MudText Typo="Typo.body2" Class="vp-muted">Buscando terceros globales...</MudText>
+                    </div>
+                }
+                else if (_globalResults.Count > 0)
+                {
+                    <div class="vp-table-scroll mt-4">
+                        <table class="vp-inventory-table vp-thirdparty-table">
+                            <thead>
+                                <tr>
+                                    <th>Documento</th>
+                                    <th>Nombre</th>
+                                    <th>Teléfono</th>
+                                    <th>Ciudad</th>
+                                    <th>Estado</th>
+                                    <th class="vp-inventory-actions-heading">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var thirdParty in _globalResults)
+                                {
+                                    var associated = IsAssociated(thirdParty.Id);
+                                    <tr>
+                                        <td>
+                                            <strong>@ResolveText(thirdParty.DocumentNumber, "Sin documento")</strong>
+                                            <span>@ResolveText(thirdParty.DocumentTypeName, $"Tipo #{thirdParty.DocumentTypeId}")</span>
+                                        </td>
+                                        <td>@thirdParty.Name</td>
+                                        <td>@ResolveText(thirdParty.Phone, "Sin teléfono")</td>
+                                        <td>@ResolveText(thirdParty.CityName, $"Ciudad #{thirdParty.CityId}")</td>
+                                        <td>
+                                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@GetStatusColor(thirdParty.Status)">
+                                                @ResolveStatus(thirdParty.Status)
+                                            </MudChip>
+                                        </td>
+                                        <td>
+                                            @if (associated)
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success">
+                                                    Ya asociado
+                                                </MudChip>
+                                            }
+                                            else
+                                            {
+                                                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Disabled="@(_associatingId == thirdParty.Id || !IsActive(thirdParty.Status))" OnClick="@(() => AssociateThirdPartyAsync(thirdParty))">
+                                                    Asociar
+                                                </MudButton>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+        }
+
+        <section class="vp-card vp-transaction-filter vp-thirdparty-filter" aria-label="Filtros de terceros asociados">
+            <div class="vp-thirdparty-filter-grid">
+                <MudTextField T="string" Label="Número documento" @bind-Value="_associatedFilter.DocumentNumber" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="20" Disabled="@_associatedLoading" />
+                <MudTextField T="string" Label="Nombre" @bind-Value="_associatedFilter.Name" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="60" Disabled="@_associatedLoading" />
+                <MudTextField T="string" Label="Teléfono" @bind-Value="_associatedFilter.Phone" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="20" Disabled="@_associatedLoading" />
+                <MudSelect T="string" Label="Estado" @bind-Value="_associatedFilter.Status" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" Disabled="@_associatedLoading">
+                    <MudSelectItem T="string" Value="@("A")">Activo</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("I")">Inactivo</MudSelectItem>
+                </MudSelect>
+                <div class="vp-transaction-filter-actions">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Default" Disabled="@_associatedLoading" StartIcon="@Icons.Material.Outlined.FilterAltOff" OnClick="ClearAssociatedFiltersAsync">
+                        Limpiar
+                    </MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@_associatedLoading" StartIcon="@Icons.Material.Outlined.Search" OnClick="LoadAssociatedThirdPartiesAsync">
+                        Buscar
+                    </MudButton>
+                </div>
+            </div>
+        </section>
+
+        @if (_associatedLoading)
+        {
+            <div class="vp-card vp-transaction-loading mt-4">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+                <MudText Typo="Typo.body2" Class="vp-muted">Consultando terceros asociados...</MudText>
+            </div>
+        }
+        else if (_associatedThirdParties.Count == 0)
+        {
+            <div class="mt-4">
+                <EmptyState Icon="@Icons.Material.Outlined.Groups" Title="Sin terceros asociados" Message="Asocia terceros existentes para usarlos en compras y ventas de este negocio." />
+            </div>
+        }
+        else
+        {
+            <section class="vp-card vp-table-card" aria-label="Terceros asociados al negocio">
+                <div class="vp-table-scroll">
+                    <table class="vp-inventory-table vp-thirdparty-table">
+                        <thead>
+                            <tr>
+                                <th>Documento</th>
+                                <th>Nombre</th>
+                                <th>Teléfono</th>
+                                <th>Ciudad / Departamento</th>
+                                <th>Estado tercero</th>
+                                <th>Estado relación</th>
+                                <th class="vp-inventory-actions-heading">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var thirdParty in _associatedThirdParties)
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>@ResolveText(thirdParty.DocumentNumber, "Sin documento")</strong>
+                                        <span>@ResolveText(thirdParty.DocumentTypeName, $"Tipo #{thirdParty.DocumentTypeId}")</span>
+                                    </td>
+                                    <td><strong>@thirdParty.Name</strong></td>
+                                    <td>@ResolveText(thirdParty.Phone, "Sin teléfono")</td>
+                                    <td>@ResolveLocation(thirdParty)</td>
+                                    <td>
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@GetStatusColor(thirdParty.Status)">
+                                            @ResolveStatus(thirdParty.Status)
+                                        </MudChip>
+                                    </td>
+                                    <td>
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@GetStatusColor(thirdParty.RelationStatus)">
+                                            @ResolveStatus(thirdParty.RelationStatus)
+                                        </MudChip>
+                                    </td>
+                                    <td>
+                                        @if (_canRemoveThirdParties)
+                                        {
+                                            <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" Disabled="@(_removingId == thirdParty.Id)" OnClick="@(() => RemoveThirdPartyAsync(thirdParty))">
+                                                Quitar del negocio
+                                            </MudButton>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        }
+    }
+</main>
+
+@code {
+    [Parameter] public int BusinessId { get; set; }
+
+    private BusinessDto? _business;
+    private AuthUserDto? _currentUser;
+    private IReadOnlyList<ThirdPartyBusinessDto> _associatedThirdParties = Array.Empty<ThirdPartyBusinessDto>();
+    private IReadOnlyList<ThirdPartyDto> _globalResults = Array.Empty<ThirdPartyDto>();
+    private ThirdPartyBusinessListFilterDto _associatedFilter = new() { Status = "A" };
+    private ThirdPartyListFilterDto _globalFilter = new() { Status = "A" };
+    private bool _loading;
+    private bool _associatedLoading;
+    private bool _globalSearching;
+    private bool _showGlobalSearch;
+    private bool _accessDenied;
+    private bool _canListGlobalThirdParties;
+    private bool _canCreateThirdParties;
+    private bool _canAssociateThirdParties;
+    private bool _canRemoveThirdParties;
+    private int? _associatingId;
+    private int? _removingId;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await PermissionState.LoadAsync();
+        _accessDenied = !PermissionState.HasPermission("negocios.consultar") && !PermissionState.HasPermission("negocios.listar");
+        _canListGlobalThirdParties = PermissionState.HasPermission("terceros-global.listar");
+        _canCreateThirdParties = PermissionState.HasPermission("terceros.crear");
+        _canAssociateThirdParties = _canCreateThirdParties;
+        _canRemoveThirdParties = PermissionState.HasPermission("terceros.eliminar") || PermissionState.HasPermission("terceros.actualizar");
+
+        if (_accessDenied)
+            return;
+
+        await LoadCurrentUserAsync();
+
+        if (_currentUser?.BusinessId is > 0 && _currentUser.BusinessId.Value != BusinessId)
+        {
+            _accessDenied = true;
+            _errorMessage = "No tienes permisos para administrar este negocio.";
+            return;
+        }
+
+        await LoadBusinessAsync();
+        if (!_accessDenied && _business is not null)
+            await LoadAssociatedThirdPartiesAsync();
+    }
+
+    private async Task LoadCurrentUserAsync()
+    {
+        var response = await AuthService.GetCurrentUserAsync();
+        if (response.IsSuccess)
+            _currentUser = response.Data;
+    }
+
+    private async Task LoadBusinessAsync()
+    {
+        _loading = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var response = await BusinessService.GetByIdAsync(BusinessId);
+            if (!response.IsSuccess)
+            {
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            _business = response.Data;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadAssociatedThirdPartiesAsync()
+    {
+        _associatedLoading = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var response = await ThirdPartyService.ListByBusinessAsync(BusinessId, _associatedFilter);
+            if (!response.IsSuccess)
+            {
+                _associatedThirdParties = Array.Empty<ThirdPartyBusinessDto>();
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            _associatedThirdParties = response.Data ?? Array.Empty<ThirdPartyBusinessDto>();
+        }
+        finally
+        {
+            _associatedLoading = false;
+        }
+    }
+
+    private async Task ClearAssociatedFiltersAsync()
+    {
+        _associatedFilter = new ThirdPartyBusinessListFilterDto { Status = "A" };
+        await LoadAssociatedThirdPartiesAsync();
+    }
+
+    private void ToggleGlobalSearch()
+    {
+        if (!CanUseGlobalThirdPartyCatalog)
+            return;
+
+        _showGlobalSearch = !_showGlobalSearch;
+        _globalResults = Array.Empty<ThirdPartyDto>();
+        _globalFilter = new ThirdPartyListFilterDto { Status = "A" };
+    }
+
+    private async Task ClearGlobalSearchAsync()
+    {
+        _globalFilter = new ThirdPartyListFilterDto { Status = "A" };
+        _globalResults = Array.Empty<ThirdPartyDto>();
+        await Task.CompletedTask;
+    }
+
+    private async Task SearchGlobalThirdPartiesAsync()
+    {
+        if (!_canListGlobalThirdParties)
+        {
+            Snackbar.Add("No tienes permisos para consultar el catálogo global de terceros.", Severity.Warning);
+            return;
+        }
+
+        _globalSearching = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var response = await ThirdPartyService.ListAsync(_globalFilter);
+            if (!response.IsSuccess)
+            {
+                _globalResults = Array.Empty<ThirdPartyDto>();
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            _globalResults = response.Data ?? Array.Empty<ThirdPartyDto>();
+        }
+        finally
+        {
+            _globalSearching = false;
+        }
+    }
+
+    private async Task AssociateThirdPartyAsync(ThirdPartyDto thirdParty)
+    {
+        if (!_canAssociateThirdParties || IsAssociated(thirdParty.Id))
+            return;
+
+        _associatingId = thirdParty.Id;
+
+        try
+        {
+            var response = await ThirdPartyService.AssociateBusinessAsync(BusinessId, thirdParty.Id);
+            if (!response.IsSuccess)
+            {
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            Snackbar.Add(string.IsNullOrWhiteSpace(response.Message) ? "Tercero asociado al negocio correctamente." : response.Message, Severity.Success);
+            await LoadAssociatedThirdPartiesAsync();
+            await SearchGlobalThirdPartiesAsync();
+        }
+        finally
+        {
+            _associatingId = null;
+        }
+    }
+
+    private async Task RemoveThirdPartyAsync(ThirdPartyBusinessDto thirdParty)
+    {
+        if (!_canRemoveThirdParties)
+            return;
+
+        _removingId = thirdParty.Id;
+
+        try
+        {
+            var response = await ThirdPartyService.InactivateBusinessAsync(BusinessId, thirdParty.Id);
+            if (!response.IsSuccess)
+            {
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            Snackbar.Add("Tercero retirado del negocio correctamente.", Severity.Success);
+            await LoadAssociatedThirdPartiesAsync();
+        }
+        finally
+        {
+            _removingId = null;
+        }
+    }
+
+    private bool IsAssociated(int thirdPartyId) =>
+        _associatedThirdParties.Any(thirdParty => thirdParty.Id == thirdPartyId && IsActive(thirdParty.RelationStatus));
+
+    private bool CanUseGlobalThirdPartyCatalog => _canListGlobalThirdParties && _canAssociateThirdParties;
+
+    private void GoToCreateAssociatedThirdParty() => NavigationManager.NavigateTo($"/terceros/nuevo?BusinessId={BusinessId}");
+
+    private void GoBack() => NavigationManager.NavigateTo("/negocios");
+
+    private async Task HandleFailureAsync(string? message)
+    {
+        var resolvedMessage = string.IsNullOrWhiteSpace(message) ? "No fue posible completar la operación." : message;
+
+        if (IsUnauthorizedMessage(resolvedMessage))
+        {
+            await AuthService.LogoutAsync();
+            Snackbar.Add("Tu sesión terminó. Inicia sesión nuevamente.", Severity.Warning);
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        _errorMessage = resolvedMessage;
+        Snackbar.Add(resolvedMessage, Severity.Error);
+    }
+
+    private static bool IsActive(string? status) => string.Equals(status, "A", StringComparison.OrdinalIgnoreCase);
+
+    private static string ResolveStatus(string? status) => IsActive(status) ? "Activo" : "Inactivo";
+
+    private static Color GetStatusColor(string? status) => IsActive(status) ? Color.Success : Color.Default;
+
+    private static string GetStatusCardClass(string? status) => IsActive(status) ? "success" : "danger";
+
+    private static string ResolveText(string? value, string fallback) => string.IsNullOrWhiteSpace(value) ? fallback : value;
+
+    private static string ResolveLocation(ThirdPartyBusinessDto thirdParty)
+    {
+        var city = ResolveText(thirdParty.CityName, $"Ciudad #{thirdParty.CityId}");
+        var department = ResolveText(thirdParty.DepartmentName, $"Departamento #{thirdParty.DepartmentId}");
+        return $"{city} / {department}";
+    }
+
+    private static string GetInitials(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "NE";
+
+        var parts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return parts.Length == 0 ? "NE" : string.Concat(parts.Take(2).Select(part => char.ToUpperInvariant(part[0])));
+    }
+
+    private static bool IsUnauthorizedMessage(string? message) =>
+        !string.IsNullOrWhiteSpace(message)
+        && (message.StartsWith("Sesión expirada", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("Sesion expirada", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("No hay una sesión activa", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("No hay una sesion activa", StringComparison.OrdinalIgnoreCase));
+}

@@ -1,0 +1,142 @@
+<section class="vp-card vp-table-card" aria-label="Inventario actual">
+    <div class="vp-table-scroll">
+        <table class="vp-inventory-table">
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Categoria</th>
+                    <th>Negocio</th>
+                    <th>Stock actual</th>
+                    <th>Stock minimo</th>
+                    <th>Stock maximo</th>
+                    <th>Costo ponderado</th>
+                    <th>Ultimo costo</th>
+                    <th>Estado</th>
+                    <th class="vp-inventory-actions-heading">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Items)
+                {
+                    <tr>
+                        <td class="vp-product-cell">
+                            <strong>@item.ProductName</strong>
+                            <span>@ResolveDescription(item)</span>
+                            <span>Producto #@item.ProductId</span>
+                        </td>
+                        <td><span class="vp-inventory-tag">@ResolveCategory(item)</span></td>
+                        <td>@ResolveBusiness(item)</td>
+                        <td class="@GetStockClass(item)">@FormatQuantity(item.CurrentStock)</td>
+                        <td>@FormatQuantity(item.MinimumStock)</td>
+                        <td>@FormatQuantity(item.MaximumStock)</td>
+                        <td>@item.WeightedAverageCost.ToString("C2", CultureInfo.GetCultureInfo("es-CO"))</td>
+                        <td>@item.LastCost.ToString("C2", CultureInfo.GetCultureInfo("es-CO"))</td>
+                        <td>
+                            <div class="vp-inventory-status-stack">
+                                <MudChip T="string"
+                                         Size="Size.Small"
+                                         Variant="Variant.Outlined"
+                                         Color="@(item.Status == "A" ? Color.Success : Color.Default)">
+                                    @ResolveStatus(item.Status)
+                                </MudChip>
+                                <MudChip T="string"
+                                         Size="Size.Small"
+                                         Variant="Variant.Filled"
+                                         Color="@GetStockColor(item)">
+                                    @ResolveStockStatus(item)
+                                </MudChip>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="vp-inventory-row-actions">
+                                @if (CanViewKardex)
+                                {
+                                    <MudTooltip Text="Ver kardex">
+                                        <MudIconButton Icon="@Icons.Material.Outlined.History"
+                                                       Size="Size.Small"
+                                                       Color="Color.Info"
+                                                       OnClick="@(() => ViewKardexAsync(item))" />
+                                    </MudTooltip>
+                                }
+
+                                @if (CanRegisterMovement)
+                                {
+                                    <MudTooltip Text="Registrar movimiento">
+                                        <MudIconButton Icon="@Icons.Material.Outlined.AddBox"
+                                                       Size="Size.Small"
+                                                       Color="Color.Primary"
+                                                       OnClick="@(() => RegisterMovementAsync(item))" />
+                                    </MudTooltip>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <footer class="vp-table-footer">
+        <span>Mostrando @Items.Count.ToString("N0") productos</span>
+        <span>Datos del inventario actual</span>
+    </footer>
+</section>
+
+@code {
+    [Parameter] public IReadOnlyList<InventoryDto> Items { get; set; } = Array.Empty<InventoryDto>();
+    [Parameter] public bool CanViewKardex { get; set; }
+    [Parameter] public bool CanRegisterMovement { get; set; }
+    [Parameter] public EventCallback<InventoryDto> OnViewKardex { get; set; }
+    [Parameter] public EventCallback<InventoryDto> OnRegisterMovement { get; set; }
+
+    private Task ViewKardexAsync(InventoryDto item) => OnViewKardex.InvokeAsync(item);
+
+    private Task RegisterMovementAsync(InventoryDto item) => OnRegisterMovement.InvokeAsync(item);
+
+    private static string ResolveDescription(InventoryDto item) =>
+        string.IsNullOrWhiteSpace(item.ProductDescription) ? "Sin descripcion" : item.ProductDescription;
+
+    private static string ResolveCategory(InventoryDto item) =>
+        string.IsNullOrWhiteSpace(item.CategoryName) ? $"Categoria #{item.ProductCategoryId}" : item.CategoryName;
+
+    private static string ResolveBusiness(InventoryDto item) =>
+        string.IsNullOrWhiteSpace(item.BusinessName) ? $"Negocio #{item.BusinessId}" : item.BusinessName;
+
+    private static string ResolveStatus(string? status) =>
+        string.Equals(status, "A", StringComparison.OrdinalIgnoreCase) ? "Activo" : "Inactivo";
+
+    private static string ResolveStockStatus(InventoryDto item)
+    {
+        if (item.CurrentStock <= item.MinimumStock)
+        {
+            return "Bajo minimo";
+        }
+
+        if (item.MaximumStock > 0 && item.CurrentStock >= item.MaximumStock)
+        {
+            return "Sobre maximo";
+        }
+
+        return "Normal";
+    }
+
+    private static Color GetStockColor(InventoryDto item)
+    {
+        if (item.CurrentStock <= item.MinimumStock)
+        {
+            return Color.Error;
+        }
+
+        if (item.MaximumStock > 0 && item.CurrentStock >= item.MaximumStock)
+        {
+            return Color.Warning;
+        }
+
+        return Color.Success;
+    }
+
+    private static string GetStockClass(InventoryDto item) =>
+        item.CurrentStock <= item.MinimumStock ? "vp-quantity-negative" : "vp-quantity-positive";
+
+    private static string FormatQuantity(decimal value) =>
+        value.ToString("N2");
+}

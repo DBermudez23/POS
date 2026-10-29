@@ -1,0 +1,9 @@
+<div class="vp-card vp-transaction-loading">
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+    <MudText Typo="Typo.body2" Class="vp-muted">@Text</MudText>
+</div>
+
+@code {
+    [Parameter]
+    public string Text { get; set; } = "Cargando catálogos...";
+}

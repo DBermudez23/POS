@@ -1,0 +1,94 @@
+<section class="vp-login-form-side">
+    <div class="vp-login-form-card">
+        <div class="vp-login-mobile-logo"><AppLogo /></div>
+
+        <div class="vp-login-form-kicker">Bienvenido de nuevo</div>
+        <h1 class="vp-login-form-title">Inicia sesión</h1>
+        <p class="vp-login-form-subtitle">Ingresa tus credenciales para acceder al punto de venta.</p>
+
+        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                @ErrorMessage
+            </MudAlert>
+        }
+
+        <MudForm @ref="_form">
+            <MudTextField T="string"
+                          Label="Correo electrónico"
+                          InputType="InputType.Email"
+                          @bind-Value="Model.Email"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Outlined.Email"
+                          Required="true"
+                          RequiredError="El correo electrónico es obligatorio."
+                          Disabled="Loading" />
+
+            <MudTextField T="string"
+                          Label="Contraseña"
+                          InputType="InputType.Password"
+                          @bind-Value="Model.Password"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Outlined.Lock"
+                          Required="true"
+                          RequiredError="La contraseña es obligatoria."
+                          Disabled="Loading" />
+
+            <div class="vp-login-form-options">
+                <MudCheckBox T="bool" @bind-Value="_rememberSession" Label="Recordar sesión" Color="Color.Primary" Class="vp-login-check" />
+                <a class="vp-login-help" href="#soporte">¿Olvidaste tu contraseña?</a>
+            </div>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       Disabled="Loading"
+                       OnClick="SubmitAsync"
+                       Class="vp-login-button">
+                @if (Loading)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <span>Ingresando...</span>
+                }
+                else
+                {
+                    <span>Ingresar a VentasPro</span>
+                }
+            </MudButton>
+        </MudForm>
+
+        <div class="vp-login-access">¿Aún no tienes cuenta? <a href="#solicitar-acceso">Solicita acceso</a></div>
+        <div class="vp-login-security">
+            <MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" Size="Size.Small" />
+            Acceso seguro y protegido
+        </div>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public LoginRequest Model { get; set; } = new();
+    [Parameter] public bool Loading { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+    [Parameter] public EventCallback OnSubmit { get; set; }
+
+    private MudForm? _form;
+    private bool _rememberSession = true;
+
+    private async Task SubmitAsync()
+    {
+        if (_form is null)
+        {
+            return;
+        }
+
+        await _form.Validate();
+        if (_form.IsValid)
+        {
+            await OnSubmit.InvokeAsync();
+        }
+    }
+}

@@ -1,0 +1,43 @@
+/* VentasPro - Responsive behavior
+   Breakpoint overrides for shell, dashboard, inventory and authentication layouts.
+*/
+@media (max-width: 1180px) {
+    .vp-user-copy { display: none; }
+    .vp-topbar-search { width: min(350px, 30vw); }
+    .vp-metric-grid, .vp-quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 900px) {
+    .vp-page { padding: 22px 18px 34px; }
+    .vp-topbar { padding: 0 12px !important; }
+    .vp-topbar-title { display: none; }
+    .vp-topbar-search { width: min(330px, 42vw); margin-left: 8px; }
+    .vp-new-sale span { display: none; }
+    .vp-new-sale { min-width: 44px; width: 44px; padding: 0 !important; }
+    .vp-dashboard-grid, .vp-dashboard-grid--bottom { grid-template-columns: 1fr; }
+    .vp-filter-main, .vp-dashboard-selector, .vp-dashboard-selector-controls { grid-template-columns: 1fr; align-items: stretch; }
+    .vp-export-btn { width: fit-content; }
+    .vp-login-page { padding: 0; background: #fff; }
+    .vp-login-shell { grid-template-columns: 1fr; width: 100%; min-height: 100vh; border: 0; border-radius: 0; box-shadow: none; }
+    .vp-login-brand { display: none; }
+    .vp-login-form-side { align-items: start; padding: 34px 24px 40px; }
+    .vp-login-form-card { width: min(460px, 100%); margin: auto; }
+    .vp-login-mobile-logo { display: block; }
+}
+
+@media (max-width: 600px) {
+    .vp-shell .mud-main-content { padding-top: 64px; }
+    .vp-topbar { height: 64px; }
+    .vp-topbar-search { display: none; }
+    .vp-page-header { flex-direction: column; }
+    .vp-metric-grid, .vp-quick-grid { grid-template-columns: 1fr; }
+    .vp-metric-card { min-height: 128px; }
+    .vp-bar-chart { gap: 6px; height: 180px; }
+    .vp-comparison-chart { gap: 6px; height: 180px; }
+    .vp-panel-card { padding: 16px; }
+    .vp-data-row { grid-template-columns: minmax(0, 1.5fr) .8fr .65fr; }
+    .vp-data-row > :nth-child(2) { display: none; }
+    .vp-login-form-side { padding: 28px 20px 34px; }
+    .vp-login-mobile-logo { margin-bottom: 46px; }
+    .vp-login-form-options { align-items: flex-start; flex-direction: column; }
+}

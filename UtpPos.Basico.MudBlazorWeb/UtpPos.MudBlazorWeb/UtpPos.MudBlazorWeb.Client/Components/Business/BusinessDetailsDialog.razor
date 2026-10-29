@@ -1,0 +1,41 @@
+<MudDialog>
+    <DialogContent>
+        <div class="business-details">
+            <div>
+                <span>NIT</span>
+                <strong>@Business.Nit</strong>
+            </div>
+            <div>
+                <span>Razón social</span>
+                <strong>@Business.Name</strong>
+            </div>
+            <div>
+                <span>Dirección</span>
+                <strong>@Business.Address</strong>
+            </div>
+            <div>
+                <span>Teléfono</span>
+                <strong>@(string.IsNullOrWhiteSpace(Business.Phone) ? "Sin teléfono registrado" : Business.Phone)</strong>
+            </div>
+            <div>
+                <span>Estado</span>
+                <MudChip T="string"
+                         Size="Size.Small"
+                         Variant="Variant.Outlined"
+                         Color="@(Business.Status == "A" ? Color.Success : Color.Default)">
+                    @(Business.Status == "A" ? "Activo" : "Inactivo")
+                </MudChip>
+            </div>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public BusinessDto Business { get; set; } = new();
+
+    private void Close() => Dialog.Close();
+}

@@ -1,0 +1,29 @@
+<div class="vp-user-menu">
+    <MudAvatar Size="Size.Medium" Class="vp-user-avatar">@Initials</MudAvatar>
+    <span class="vp-user-copy">
+        <strong>@DisplayName</strong>
+        <span>Administrador</span>
+    </span>
+    <MudTooltip Text="Cerrar sesión">
+        <MudIconButton Icon="@Icons.Material.Outlined.Logout" Color="Color.Inherit" Size="Size.Small" OnClick="@OnLogout" />
+    </MudTooltip>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ClaimsPrincipal User { get; set; } = new();
+    [Parameter] public EventCallback OnLogout { get; set; }
+
+    private string DisplayName => User.FindFirst("usr_nombre")?.Value
+        ?? User.Identity?.Name
+        ?? User.FindFirst("usr_correo")?.Value
+        ?? "Usuario";
+
+    private string Initials
+    {
+        get
+        {
+            var parts = DisplayName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return string.Concat(parts.Take(2).Select(part => char.ToUpperInvariant(part[0])));
+        }
+    }
+}

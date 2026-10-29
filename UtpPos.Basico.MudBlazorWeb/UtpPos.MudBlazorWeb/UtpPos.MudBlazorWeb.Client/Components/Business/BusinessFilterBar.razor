@@ -1,0 +1,59 @@
+<section class="vp-card business-filter" aria-label="Filtros de negocios">
+    <div class="business-filter-grid">
+        <MudTextField T="string"
+                      Label="Nombre o razón social"
+                      @bind-Value="Filter.Name"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Outlined.Search"
+                      Disabled="Loading" />
+
+        <MudTextField T="string"
+                      Label="NIT"
+                      @bind-Value="Filter.Nit"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      MaxLength="20"
+                      Disabled="Loading" />
+
+        <MudSelect T="string"
+                   Label="Estado"
+                   @bind-Value="Filter.Status"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Clearable="true"
+                   Disabled="Loading">
+            <MudSelectItem T="string" Value="@("A")">Activo</MudSelectItem>
+            <MudSelectItem T="string" Value="@("I")">Inactivo</MudSelectItem>
+        </MudSelect>
+
+        <div class="business-filter-actions">
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Default"
+                       Disabled="Loading"
+                       OnClick="ClearAsync"
+                       StartIcon="@Icons.Material.Outlined.FilterAltOff">
+                Limpiar
+            </MudButton>
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       Disabled="Loading"
+                       OnClick="SearchAsync"
+                       StartIcon="@Icons.Material.Outlined.Search">
+                Buscar
+            </MudButton>
+        </div>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public BusinessListFilterDto Filter { get; set; } = new();
+    [Parameter] public bool Loading { get; set; }
+    [Parameter] public EventCallback OnSearch { get; set; }
+    [Parameter] public EventCallback OnClear { get; set; }
+
+    private Task SearchAsync() => OnSearch.InvokeAsync();
+
+    private Task ClearAsync() => OnClear.InvokeAsync();
+}

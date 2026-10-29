@@ -1,0 +1,273 @@
+@using UtpPos.Framework.Interface.File
+@using Microsoft.AspNetCore.Components.Forms
+
+@inject IFileUploadService FileUploadService
+@inject ISnackbar Snackbar
+
+<div class="@PickerClass">
+    <div class="product-image-picker__dropzone">
+        @if (!string.IsNullOrWhiteSpace(_previewUrl))
+        {
+            <img @key="_previewUrl" class="product-image-picker__preview" src="@_previewUrl" alt="Vista previa del producto"
+                 @onerror="HandlePreviewError" />
+        }
+        else
+        {
+            <div class="product-image-picker__placeholder">
+                <MudIcon Icon="@Icons.Material.Outlined.AddPhotoAlternate" />
+                <span>Seleccionar imagen</span>
+            </div>
+        }
+
+        <InputFile class="product-image-picker__input" OnChange="OnFileSelectedAsync"
+                   accept="image/jpeg,image/png,image/webp" disabled="@(_uploading || Disabled)" />
+
+        @if (_uploading)
+        {
+            <div class="product-image-picker__overlay">
+                <MudProgressCircular Indeterminate="true" Size="Size.Medium" Color="Color.Primary" />
+                <span>Subiendo imagen...</span>
+            </div>
+        }
+
+        @if (_uploaded)
+        {
+            <div class="product-image-picker__status product-image-picker__status--success">
+                <MudIcon Icon="@Icons.Material.Outlined.CheckCircle" Size="Size.Small" />
+                <span>Imagen cargada</span>
+            </div>
+        }
+
+        @if (_failed)
+        {
+            <div class="product-image-picker__status product-image-picker__status--error">
+                <MudIcon Icon="@Icons.Material.Outlined.ErrorOutline" Size="Size.Small" />
+                <span>Error al cargar</span>
+            </div>
+        }
+    </div>
+
+    <div class="product-image-picker__actions">
+        <span class="product-image-picker__hint">
+            JPG, PNG o WEBP. Máximo 3 MB.
+        </span>
+
+        @if (!string.IsNullOrWhiteSpace(_previewUrl))
+        {
+            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small"
+                       StartIcon="@Icons.Material.Outlined.DeleteOutline" Disabled="@(_uploading || Disabled)"
+                       OnClick="ClearAsync">
+                Quitar
+            </MudButton>
+        }
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <p class="product-image-picker__error">@_errorMessage</p>
+    }
+</div>
+
+@code {
+    private const long MaxFileSizeBytes = 3 * 1024 * 1024;
+
+    private string? _previewUrl;
+    private string? _lastCurrentImageUrl;
+    private string? _errorMessage;
+
+    private bool _uploading;
+    private bool _uploaded;
+    private bool _failed;
+
+    [Parameter] public string? CurrentImageUrl { get; set; }
+
+    [Parameter] public bool Disabled { get; set; }
+
+    [Parameter] public EventCallback<string?> ImageUrlChanged { get; set; }
+
+    [Parameter] public EventCallback<bool> UploadingChanged { get; set; }
+
+    [Parameter] public EventCallback OnImageCleared { get; set; }
+
+    private string PickerClass =>
+        $"product-image-picker" +
+        (_uploading ? " product-image-picker--uploading" : string.Empty) +
+        (_uploaded ? " product-image-picker--uploaded" : string.Empty) +
+        (_failed ? " product-image-picker--error" : string.Empty) +
+        (Disabled ? " product-image-picker--disabled" : string.Empty);
+
+    protected override void OnParametersSet()
+    {
+        if (_lastCurrentImageUrl == CurrentImageUrl)
+        {
+            return;
+        }
+
+        _lastCurrentImageUrl = CurrentImageUrl;
+
+        if (_uploading)
+        {
+            return;
+        }
+
+        _previewUrl = CurrentImageUrl;
+        _uploaded = !string.IsNullOrWhiteSpace(CurrentImageUrl);
+        _failed = false;
+        _errorMessage = null;
+    }
+
+    private async Task OnFileSelectedAsync(InputFileChangeEventArgs args)
+    {
+        if (Disabled || _uploading)
+        {
+            return;
+        }
+
+        var file = args.File;
+
+        ResetState();
+
+        var validationMessage = ValidateFile(file);
+        if (!string.IsNullOrWhiteSpace(validationMessage))
+        {
+            _failed = true;
+            _errorMessage = validationMessage;
+            Snackbar.Add(validationMessage, Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            _previewUrl = await CreatePreviewAsync(file);
+        }
+        catch
+        {
+            _failed = true;
+            _errorMessage = "No fue posible generar la vista previa de la imagen.";
+            Snackbar.Add(_errorMessage, Severity.Error);
+            return;
+        }
+
+        await SetUploadingAsync(true);
+
+        try
+        {
+            var response = await FileUploadService.UploadProductImageAsync(file);
+
+            if (!response.IsSuccess || response.Data is null || string.IsNullOrWhiteSpace(response.Data.Url))
+            {
+                _failed = true;
+                _uploaded = false;
+                _errorMessage = string.IsNullOrWhiteSpace(response.Message)
+                    ? "No fue posible subir la imagen."
+                    : response.Message;
+
+                Snackbar.Add(_errorMessage, Severity.Error);
+                return;
+            }
+
+            _previewUrl = response.Data.Url;
+            _lastCurrentImageUrl = response.Data.Url;
+
+            _uploaded = true;
+            _failed = false;
+            _errorMessage = null;
+
+            await ImageUrlChanged.InvokeAsync(response.Data.Url);
+
+            Snackbar.Add("Imagen cargada correctamente.", Severity.Success);
+        }
+        catch
+        {
+            _failed = true;
+            _uploaded = false;
+            _errorMessage = "Ocurrió un error inesperado al subir la imagen.";
+            Snackbar.Add(_errorMessage, Severity.Error);
+        }
+        finally
+        {
+            await SetUploadingAsync(false);
+        }
+    }
+
+    private async Task ClearAsync()
+    {
+        if (_uploading || Disabled)
+        {
+            return;
+        }
+
+        ResetState();
+
+        _previewUrl = null;
+        _lastCurrentImageUrl = null;
+
+        await ImageUrlChanged.InvokeAsync(null);
+        await OnImageCleared.InvokeAsync();
+    }
+
+    private async Task SetUploadingAsync(bool value)
+    {
+        _uploading = value;
+        await UploadingChanged.InvokeAsync(value);
+    }
+
+    private void ResetState()
+    {
+        _uploaded = false;
+        _failed = false;
+        _errorMessage = null;
+    }
+
+    private void HandlePreviewError()
+    {
+        _previewUrl = null;
+        _uploaded = false;
+        _failed = true;
+        _errorMessage = "No fue posible previsualizar la imagen.";
+    }
+
+    private static string? ValidateFile(IBrowserFile? file)
+    {
+        if (file is null)
+        {
+            return "Debe seleccionar una imagen.";
+        }
+
+        if (file.Size <= 0)
+        {
+            return "La imagen seleccionada está vacía.";
+        }
+
+        if (file.Size > MaxFileSizeBytes)
+        {
+            return "La imagen no puede superar 3 MB.";
+        }
+
+        var allowedContentTypes = new[]
+        {
+            "image/jpeg",
+            "image/png",
+            "image/webp"
+        };
+
+        if (!allowedContentTypes.Contains(file.ContentType))
+        {
+            return "Solo se permiten imágenes JPG, PNG o WEBP.";
+        }
+
+        return null;
+    }
+
+    private static async Task<string> CreatePreviewAsync(IBrowserFile file)
+    {
+        await using var stream = file.OpenReadStream(MaxFileSizeBytes);
+
+        using var memoryStream = new MemoryStream();
+        await stream.CopyToAsync(memoryStream);
+
+        var base64 = Convert.ToBase64String(memoryStream.ToArray());
+
+        return $"data:{file.ContentType};base64,{base64}";
+    }
+}

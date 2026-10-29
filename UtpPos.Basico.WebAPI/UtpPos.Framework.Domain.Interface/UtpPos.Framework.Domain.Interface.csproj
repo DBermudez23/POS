@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Platforms>AnyCPU;x86</Platforms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\UtpPos.Framework.Domain.Entity\UtpPos.Framework.Domain.Entity.csproj" />
+    <ProjectReference Include="..\UtpPos.Framework.Transversal.Common\UtpPos.Framework.Transversal.Common.csproj" />
+  </ItemGroup>
+
+</Project>

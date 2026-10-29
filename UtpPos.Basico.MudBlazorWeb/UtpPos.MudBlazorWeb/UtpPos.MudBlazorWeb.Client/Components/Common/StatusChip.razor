@@ -1,0 +1,8 @@
+<span class="vp-status-chip vp-status-chip--@CssType">@Text</span>
+
+@code {
+    [Parameter, EditorRequired] public string Text { get; set; } = string.Empty;
+    [Parameter] public string Type { get; set; } = "pending";
+
+    private string CssType => Type.Trim().ToLowerInvariant();
+}

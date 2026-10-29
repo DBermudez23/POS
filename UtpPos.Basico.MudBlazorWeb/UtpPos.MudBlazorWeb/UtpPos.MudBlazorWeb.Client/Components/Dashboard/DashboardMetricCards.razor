@@ -1,0 +1,62 @@
+<section class="vp-metric-grid" aria-label="Indicadores principales">
+    <MetricCard Label="Ventas del día"
+                Value="@FormatCurrency(BasicOverview.DailySales.Total)"
+                Icon="@Icons.Material.Outlined.Payments"
+                Trend="@FormatPercentage(BasicOverview.DailySales.PercentageChange)"
+                TrendPositive="@(BasicOverview.DailySales.PercentageChange >= 0)"
+                Helper="@ResolveDailySalesHelper()" />
+    <MetricCard Label="Compras del mes"
+                Value="@MonthlyPurchasesValue"
+                Icon="@Icons.Material.Outlined.ShoppingBag"
+                AccentColor="#3D67B6"
+                SoftColor="#EAF0FB"
+                Trend="@MonthlyPurchasesTrend"
+                TrendPositive="@(FinancialOverview?.MonthlyPurchases.PercentageChange >= 0)"
+                Helper="@MonthlyPurchasesHelper" />
+    <MetricCard Label="Ticket promedio"
+                Value="@FormatCurrency(BasicOverview.AverageTicket.Value)"
+                Icon="@Icons.Material.Outlined.ReceiptLong"
+                AccentColor="#A76A13"
+                SoftColor="#FFF4DF"
+                Helper="@($"en {BasicOverview.AverageTicket.SalesCount:N0} ventas")" />
+    <MetricCard Label="Productos en alerta"
+                Value="@BasicOverview.StockAlertsCount.TotalAlerts.ToString("N0", ColombianCulture)"
+                Icon="@Icons.Material.Outlined.WarningAmber"
+                AccentColor="#B33C52"
+                SoftColor="#FFEDF1"
+                Trend="@BasicOverview.StockAlertsCount.CriticalAlerts.ToString("N0", ColombianCulture)"
+                TrendPositive="false"
+                Helper="alertas críticas" />
+</section>
+
+@code {
+    private static readonly CultureInfo ColombianCulture = CultureInfo.GetCultureInfo("es-CO");
+
+    [Parameter, EditorRequired] public DashboardBasicOverviewDto BasicOverview { get; set; } = new();
+    [Parameter] public DashboardFinancialOverviewDto? FinancialOverview { get; set; }
+    [Parameter] public bool CanViewFinancial { get; set; }
+
+    private string MonthlyPurchasesValue => CanViewFinancial
+        ? FormatCurrency(FinancialOverview?.MonthlyPurchases.Total ?? 0)
+        : "Restringido";
+
+    private string? MonthlyPurchasesTrend => CanViewFinancial && FinancialOverview is not null
+        ? FormatPercentage(FinancialOverview.MonthlyPurchases.PercentageChange)
+        : null;
+
+    private string MonthlyPurchasesHelper => CanViewFinancial
+        ? FinancialOverview?.MonthlyPurchases.ComparisonLabel ?? "financial-overview"
+        : "permiso requerido";
+
+    private string ResolveDailySalesHelper()
+    {
+        if (!string.IsNullOrWhiteSpace(BasicOverview.DailySales.ComparisonLabel))
+            return BasicOverview.DailySales.ComparisonLabel;
+
+        return $"{BasicOverview.DailySales.SalesCount:N0} ventas";
+    }
+
+    private static string FormatCurrency(decimal value) => value.ToString("C0", ColombianCulture);
+
+    private static string FormatPercentage(decimal value) => $"{value:N1}%";
+}

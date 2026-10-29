@@ -1,0 +1,82 @@
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="vp-muted mb-4">@Message</MudText>
+
+        @if (MovementTypes.Count == 0)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true">
+                No se encontraron tipos de movimiento Kardex disponibles.
+            </MudAlert>
+        }
+        else
+        {
+            <MudSelect T="int?"
+                       Label="Tipo de movimiento Kardex"
+                       Value="_movementTypeId"
+                       ValueChanged="SetMovementTypeAsync"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Required="true"
+                       RequiredError="Selecciona el tipo de movimiento de anulación.">
+                @foreach (var movementType in MovementTypes)
+                {
+                    <MudSelectItem T="int?" Value="@((int?)movementType.Id)">
+                        @GetMovementTypeLabel(movementType)
+                    </MudSelectItem>
+                }
+            </MudSelect>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="mt-3">
+                @_errorMessage
+            </MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Error"
+                   Disabled="@(MovementTypes.Count == 0)"
+                   StartIcon="@Icons.Material.Outlined.Block"
+                   OnClick="Confirm">
+            @ConfirmText
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance Dialog { get; set; } = null!;
+    [Parameter] public string Message { get; set; } = "Selecciona el movimiento Kardex con el que se registrará la anulación.";
+    [Parameter] public string ConfirmText { get; set; } = "Anular";
+    [Parameter] public IReadOnlyList<ParameterOptionDto> MovementTypes { get; set; } = Array.Empty<ParameterOptionDto>();
+
+    private int? _movementTypeId;
+    private string _errorMessage = string.Empty;
+
+    private Task SetMovementTypeAsync(int? movementTypeId)
+    {
+        _movementTypeId = movementTypeId;
+        _errorMessage = string.Empty;
+        return Task.CompletedTask;
+    }
+
+    private void Confirm()
+    {
+        if (!_movementTypeId.HasValue || _movementTypeId.Value <= 0)
+        {
+            _errorMessage = "Selecciona un tipo de movimiento Kardex válido.";
+            return;
+        }
+
+        Dialog.Close(DialogResult.Ok(_movementTypeId.Value));
+    }
+
+    private void Cancel() => Dialog.Cancel();
+
+    private static string GetMovementTypeLabel(ParameterOptionDto option) =>
+        string.IsNullOrWhiteSpace(option.Code)
+            ? option.Description
+            : $"{option.Description} ({option.Code})";
+}

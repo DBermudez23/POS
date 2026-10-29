@@ -1,0 +1,298 @@
+@page "/"
+@attribute [Authorize]
+@using System.Globalization
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IDashboardService DashboardService
+@inject IBusinessService BusinessService
+@inject IAuthService AuthService
+@inject PermissionStateService PermissionState
+@inject CurrentUserRoleStateService RoleState
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<PageTitle>Panel de Control | VentasPro</PageTitle>
+
+<main class="vp-page">
+    <PageHeader Kicker="Dashboard"
+                Title="@GreetingTitle"
+                Subtitle="@DashboardSubtitle">
+        <Action>
+            @if (SelectedBusiness is not null)
+            {
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary">
+                    @SelectedBusiness.Name
+                </MudChip>
+            }
+        </Action>
+    </PageHeader>
+
+    @if (_accessDenied)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+            No tienes permisos para consultar el dashboard.
+        </MudAlert>
+    }
+    else
+    {
+        @if (_isGlobalUser)
+        {
+            @if (_canSelectGlobalBusiness)
+            {
+                <DashboardBusinessSelector Businesses="_businesses"
+                                           SelectedBusinessId="_selectedBusinessId"
+                                           SelectedBusinessIdChanged="OnSelectedBusinessChanged"
+                                           LoadingBusinesses="_loadingBusinesses"
+                                           LoadingDashboard="_loading"
+                                           OnLoadDashboard="LoadSelectedBusinessAsync" />
+
+                @if (_loadingBusinesses)
+                {
+                    <div class="vp-card vp-dashboard-loading">
+                        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+                        <MudText Typo="Typo.body2" Class="vp-muted">Cargando negocios disponibles...</MudText>
+                    </div>
+                }
+            }
+
+            @if (!string.IsNullOrWhiteSpace(_businessSelectorMessage))
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4">
+                    @_businessSelectorMessage
+                </MudAlert>
+            }
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">
+                @_errorMessage
+            </MudAlert>
+        }
+
+        @if (_loading)
+        {
+            <div class="vp-card vp-dashboard-loading">
+                <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+                <MudText Typo="Typo.body2" Class="vp-muted">Consultando métricas del dashboard...</MudText>
+            </div>
+        }
+
+        @if (CanRenderDashboard)
+        {
+            <DashboardOverviewContent BasicOverview="BasicOverview"
+                                      FinancialOverview="FinancialOverview"
+                                      CanViewFinancial="_canViewFinancial" />
+        }
+    }
+</main>
+
+@code {
+    private static readonly CultureInfo ColombianCulture = CultureInfo.GetCultureInfo("es-CO");
+
+    private string _userName = "usuario";
+    private int? _userBusinessId;
+    private int? _selectedBusinessId;
+    private IReadOnlyList<BusinessDto> _businesses = Array.Empty<BusinessDto>();
+    private DashboardBasicOverviewDto? _basicOverview;
+    private DashboardFinancialOverviewDto? _financialOverview;
+    private bool _accessDenied;
+    private bool _canViewFinancial;
+    private bool _canSelectGlobalBusiness;
+    private bool _isGlobalUser;
+    private bool _loading;
+    private bool _loadingBusinesses;
+    private bool _dashboardLoaded;
+    private string _errorMessage = string.Empty;
+    private string _businessSelectorMessage = string.Empty;
+
+    private string GreetingTitle => $"Buen día, {_userName}";
+
+    private string DashboardSubtitle =>
+        $"Resumen general · {DateTime.Today.ToString("dddd, d 'de' MMMM", ColombianCulture)}";
+
+    private DashboardBasicOverviewDto BasicOverview => _basicOverview ?? new DashboardBasicOverviewDto();
+
+    private DashboardFinancialOverviewDto? FinancialOverview => _financialOverview;
+
+    private BusinessDto? SelectedBusiness => _selectedBusinessId.HasValue
+        ? _businesses.FirstOrDefault(business => business.Id == _selectedBusinessId.Value)
+        : null;
+
+    private bool CanRenderDashboard => !_accessDenied && !_loading && (!_isGlobalUser || _dashboardLoaded);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(PermissionState.LoadAsync(), RoleState.LoadAsync());
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        _userName =
+            user.FindFirst(ClaimTypes.Name)?.Value
+            ?? user.FindFirst("usr_nombre")?.Value
+            ?? user.FindFirst("usr_correo")?.Value
+            ?? "usuario";
+
+        _userBusinessId = ResolveUserBusinessId(user);
+        _isGlobalUser = !_userBusinessId.HasValue;
+        _accessDenied = !PermissionState.HasPermission("dashboard.ver");
+        _canViewFinancial = PermissionState.HasPermission("dashboard-finanzas.ver");
+        _canSelectGlobalBusiness = PermissionState.HasPermission("dashboard-global.ver")
+            && (PermissionState.HasPermission("negocios.listar") || RoleState.HasFullAccessRole || RoleState.HasSystemRole);
+
+        if (_accessDenied)
+            return;
+
+        if (_userBusinessId.HasValue)
+        {
+            await LoadDashboardAsync(null);
+            return;
+        }
+
+        _businessSelectorMessage = "Selecciona un negocio para visualizar las métricas del dashboard.";
+
+        if (!_canSelectGlobalBusiness)
+        {
+            _businessSelectorMessage = PermissionState.HasPermission("dashboard-global.ver")
+                ? "No tienes permisos para listar negocios disponibles."
+                : "No tienes permisos para consultar dashboard por negocio.";
+            return;
+        }
+
+        await LoadBusinessesAsync();
+    }
+
+    private async Task LoadBusinessesAsync()
+    {
+        _loadingBusinesses = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var response = await BusinessService.ListAsync(new BusinessListFilterDto { Status = "A" });
+            if (!response.IsSuccess)
+            {
+                _businesses = Array.Empty<BusinessDto>();
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            _businesses = response.Data ?? Array.Empty<BusinessDto>();
+            if (_businesses.Count == 0)
+                _businessSelectorMessage = "No hay negocios activos disponibles para consultar.";
+        }
+        finally
+        {
+            _loadingBusinesses = false;
+        }
+    }
+
+    private Task OnSelectedBusinessChanged(int? businessId)
+    {
+        _selectedBusinessId = businessId;
+        _dashboardLoaded = false;
+        _basicOverview = null;
+        _financialOverview = null;
+        _errorMessage = string.Empty;
+        _businessSelectorMessage = "Selecciona un negocio para visualizar las métricas del dashboard.";
+        return Task.CompletedTask;
+    }
+
+    private async Task LoadSelectedBusinessAsync()
+    {
+        if (!_selectedBusinessId.HasValue)
+        {
+            Snackbar.Add("Selecciona un negocio para visualizar las métricas del dashboard.", Severity.Info);
+            return;
+        }
+
+        await LoadDashboardAsync(_selectedBusinessId.Value);
+    }
+
+    private async Task LoadDashboardAsync(int? selectedBusinessId)
+    {
+        _loading = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var filter = new DashboardOverviewFilterDto
+            {
+                BusinessId = selectedBusinessId,
+                Top = 5
+            };
+
+            var basicResponse = await DashboardService.GetBasicOverviewAsync(filter);
+            if (!basicResponse.IsSuccess)
+            {
+                _dashboardLoaded = false;
+                _basicOverview = null;
+                _financialOverview = null;
+                await HandleFailureAsync(basicResponse.Message);
+                return;
+            }
+
+            _basicOverview = basicResponse.Data ?? new DashboardBasicOverviewDto();
+
+            if (_canViewFinancial)
+            {
+                var financialResponse = await DashboardService.GetFinancialOverviewAsync(filter);
+                if (!financialResponse.IsSuccess)
+                {
+                    _financialOverview = null;
+                    await HandleFailureAsync(financialResponse.Message);
+                }
+                else
+                {
+                    _financialOverview = financialResponse.Data ?? new DashboardFinancialOverviewDto();
+                }
+            }
+            else
+            {
+                _financialOverview = null;
+            }
+
+            _dashboardLoaded = true;
+            _businessSelectorMessage = string.Empty;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task HandleFailureAsync(string? message)
+    {
+        var resolvedMessage = string.IsNullOrWhiteSpace(message)
+            ? "No fue posible consultar el dashboard."
+            : message;
+
+        if (IsUnauthorizedMessage(resolvedMessage))
+        {
+            await AuthService.LogoutAsync();
+            Snackbar.Add("Tu sesión terminó. Inicia sesión nuevamente.", Severity.Warning);
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        _errorMessage = resolvedMessage;
+        Snackbar.Add(resolvedMessage, Severity.Error);
+    }
+
+    private static int? ResolveUserBusinessId(ClaimsPrincipal user)
+    {
+        return int.TryParse(user.FindFirst("usr_neg_id")?.Value, out var businessId) && businessId > 0
+            ? businessId
+            : null;
+    }
+
+    private static bool IsUnauthorizedMessage(string? message) =>
+        !string.IsNullOrWhiteSpace(message)
+        && (message.StartsWith("Sesión expirada", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("Sesion expirada", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("No hay una sesión activa", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("No hay una sesion activa", StringComparison.OrdinalIgnoreCase));
+}

@@ -1,0 +1,47 @@
+@if (IsEmpty)
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4">
+        No hay métricas disponibles para el periodo seleccionado.
+    </MudAlert>
+}
+
+<DashboardMetricCards BasicOverview="BasicOverview"
+                      FinancialOverview="FinancialOverview"
+                      CanViewFinancial="CanViewFinancial" />
+
+<DashboardQuickActions />
+
+<section class="vp-dashboard-grid" aria-label="Analítica de ventas">
+    <SalesBarChartCard Items="BasicOverview.WeeklySales"
+                       TrendText="@FormatPercentage(BasicOverview.DailySales.PercentageChange)"
+                       TrendPositive="@(BasicOverview.DailySales.PercentageChange >= 0)" />
+    <CategoryDonutCard Items="BasicOverview.SalesByCategory" />
+</section>
+
+<section class="vp-dashboard-grid" aria-label="Analítica financiera e inventario">
+    <SalesVsPurchasesChartCard Items="@(FinancialOverview?.SalesVsPurchases ?? Array.Empty<DashboardSalesVsPurchasesItemDto>())"
+                               Restricted="@(!CanViewFinancial)" />
+    <InventoryAlertsCard Items="BasicOverview.InventoryAlerts" />
+</section>
+
+<section class="vp-dashboard-grid vp-dashboard-grid--bottom" aria-label="Actividad reciente">
+    <RecentSalesCard Items="BasicOverview.RecentSales" />
+    <RecentKardexMovementsCard Items="BasicOverview.RecentKardexMovements" />
+</section>
+
+@code {
+    private static readonly CultureInfo ColombianCulture = CultureInfo.GetCultureInfo("es-CO");
+
+    [Parameter, EditorRequired] public DashboardBasicOverviewDto BasicOverview { get; set; } = new();
+    [Parameter] public DashboardFinancialOverviewDto? FinancialOverview { get; set; }
+    [Parameter] public bool CanViewFinancial { get; set; }
+
+    private bool IsEmpty =>
+        BasicOverview.DailySales.Total == 0
+        && BasicOverview.WeeklySales.Count == 0
+        && BasicOverview.SalesByCategory.Count == 0
+        && BasicOverview.RecentSales.Count == 0
+        && BasicOverview.InventoryAlerts.Count == 0;
+
+    private static string FormatPercentage(decimal value) => $"{value:N1}%";
+}

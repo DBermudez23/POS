@@ -1,0 +1,46 @@
+<section class="vp-card vp-dashboard-selector" aria-label="Selector de negocio para dashboard">
+    <div class="vp-dashboard-selector-copy">
+        <span class="vp-dashboard-selector-icon">
+            <MudIcon Icon="@Icons.Material.Outlined.Storefront" Size="Size.Medium" />
+        </span>
+        <div>
+            <strong>Selecciona un negocio</strong>
+            <span>El dashboard global solo consulta métricas después de elegir un negocio específico.</span>
+        </div>
+    </div>
+
+    <div class="vp-dashboard-selector-controls">
+        <MudSelect T="int?"
+                   Class="vp-dashboard-selector-select"
+                   Label="Negocio"
+                   Value="SelectedBusinessId"
+                   ValueChanged="SelectedBusinessIdChanged"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Disabled="@(LoadingBusinesses || LoadingDashboard)"
+                   Clearable="true">
+            @foreach (var business in Businesses)
+            {
+                <MudSelectItem T="int?" Value="@((int?)business.Id)">@business.Name</MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudButton Class="vp-dashboard-selector-button"
+                   Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Disabled="@(!SelectedBusinessId.HasValue || LoadingDashboard)"
+                   OnClick="OnLoadDashboard"
+                   StartIcon="@Icons.Material.Outlined.Analytics">
+            Consultar métricas
+        </MudButton>
+    </div>
+</section>
+
+@code {
+    [Parameter] public IReadOnlyList<BusinessDto> Businesses { get; set; } = Array.Empty<BusinessDto>();
+    [Parameter] public int? SelectedBusinessId { get; set; }
+    [Parameter] public EventCallback<int?> SelectedBusinessIdChanged { get; set; }
+    [Parameter] public bool LoadingBusinesses { get; set; }
+    [Parameter] public bool LoadingDashboard { get; set; }
+    [Parameter] public EventCallback OnLoadDashboard { get; set; }
+}

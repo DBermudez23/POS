@@ -1,0 +1,9 @@
+<span class="vp-trend @(!Positive ? "vp-trend--down" : null)">
+    <MudIcon Icon="@(Positive ? Icons.Material.Filled.TrendingUp : Icons.Material.Filled.TrendingDown)" Size="Size.Small" />
+    @Text
+</span>
+
+@code {
+    [Parameter, EditorRequired] public string Text { get; set; } = string.Empty;
+    [Parameter] public bool Positive { get; set; } = true;
+}

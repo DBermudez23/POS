@@ -1,0 +1,166 @@
+@inject IProductService ProductService
+@inject IAuthService AuthService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<MudDialog>
+    <DialogContent>
+        @if (_loading)
+        {
+            <div class="product-loading">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+                <MudText Typo="Typo.body2" Class="vp-muted">Consultando detalle...</MudText>
+            </div>
+        }
+        else if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true">
+                @_errorMessage
+            </MudAlert>
+        }
+        else if (_product is not null)
+        {
+            <div class="product-detail-layout">
+                <aside class="product-detail-image">
+                    @if (!string.IsNullOrWhiteSpace(_product.Image))
+                    {
+                        <img src="@_product.Image" alt="@_product.Name" />
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Outlined.Inventory2" />
+                        <span>Sin imagen</span>
+                    }
+                </aside>
+
+                <section class="product-details">
+                    <div class="product-details__wide">
+                        <span>Producto</span>
+                        <strong>@_product.Name</strong>
+                        <small>@_product.Description</small>
+                    </div>
+                    <div>
+                        <span>Estado</span>
+                        <MudChip T="string"
+                                 Size="Size.Small"
+                                 Variant="Variant.Outlined"
+                                 Color="@(_product.Status == "A" ? Color.Success : Color.Default)">
+                            @(_product.Status == "A" ? "Activo" : "Inactivo")
+                        </MudChip>
+                    </div>
+                    <div>
+                        <span>Categoria</span>
+                        <strong>@(_product.CategoryName ?? $"Categoria #{_product.CategoryId}")</strong>
+                    </div>
+                    <div>
+                        <span>Valor base de venta</span>
+                        <strong>@FormatSaleValue(_product.SaleValue)</strong>
+                        <small>No incluye IVA</small>
+                    </div>
+                    <div>
+                        <span>IVA</span>
+                        <strong>@($"{_product.VatPercentage:N2}%")</strong>
+                    </div>
+                    <div>
+                        <span>Margen ganancia</span>
+                        <strong>@($"{_product.ProfitMarginPercentage:N2}%")</strong>
+                    </div>
+                    <div>
+                        <span>External ID</span>
+                        <strong>@(string.IsNullOrWhiteSpace(_product.ExternalId) ? "Sin external ID" : _product.ExternalId)</strong>
+                    </div>
+                    <div>
+                        <span>Negocio</span>
+                        <strong>@(_product.BusinessName ?? (_product.BusinessId.HasValue ? $"Negocio #{_product.BusinessId}" : "Global"))</strong>
+                    </div>
+                    <div>
+                        <span>Creado por</span>
+                        <strong>@(_product.CreatedByUserName ?? $"Usuario #{_product.CreatedByUserId}")</strong>
+                    </div>
+                    <div>
+                        <span>Fecha creado</span>
+                        <strong>@_product.CreatedAt.ToString("yyyy-MM-dd HH:mm")</strong>
+                    </div>
+                    <div class="product-details__wide">
+                        <span>Imagen registrada</span>
+                        <strong>@(string.IsNullOrWhiteSpace(_product.Image) ? "Sin imagen registrada" : _product.Image)</strong>
+                    </div>
+                </section>
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public int ProductId { get; set; }
+
+    private ProductDto? _product;
+    private bool _loading = true;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProductAsync();
+    }
+
+    private async Task LoadProductAsync()
+    {
+        _loading = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var response = await ProductService.GetByIdAsync(ProductId);
+
+            if (!response.IsSuccess)
+            {
+                if (await HandleUnauthorizedAsync(response.Message))
+                {
+                    return;
+                }
+
+                _errorMessage = string.IsNullOrWhiteSpace(response.Message)
+                    ? "No fue posible consultar el producto."
+                    : response.Message;
+                return;
+            }
+
+            _product = response.Data;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void Close() => Dialog.Close();
+
+    private async Task<bool> HandleUnauthorizedAsync(string? message)
+    {
+        if (!IsUnauthorizedMessage(message))
+        {
+            return false;
+        }
+
+        await AuthService.LogoutAsync();
+        Dialog.Cancel();
+        Snackbar.Add("Tu sesion termino. Inicia sesion nuevamente.", Severity.Warning);
+        NavigationManager.NavigateTo("/login", replace: true);
+        return true;
+    }
+
+    private static bool IsUnauthorizedMessage(string? message) =>
+        !string.IsNullOrWhiteSpace(message)
+        && (message.StartsWith("Sesion expirada", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("No hay una sesion activa", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("Sesi", StringComparison.OrdinalIgnoreCase));
+
+    private static string FormatSaleValue(decimal? value) =>
+        value is > 0
+            ? value.GetValueOrDefault().ToString("C0", CultureInfo.GetCultureInfo("es-CO"))
+            : "Pendiente de compra";
+}

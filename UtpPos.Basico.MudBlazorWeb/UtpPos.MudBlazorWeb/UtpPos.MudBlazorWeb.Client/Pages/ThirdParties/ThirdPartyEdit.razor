@@ -1,0 +1,313 @@
+@page "/terceros/{Id:int}/editar"
+@attribute [Authorize]
+@inject IThirdPartyService ThirdPartyService
+@inject IBusinessService BusinessService
+@inject IParameterService ParameterService
+@inject IAuthService AuthService
+@inject PermissionStateService PermissionState
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<PageTitle>Editar tercero | VentasPro</PageTitle>
+
+<main class="vp-page vp-transaction-page vp-thirdparty-page">
+    <PageHeader Kicker="Terceros" Title="Editar tercero" Subtitle="Actualiza la informacion comercial y de contacto del tercero.">
+        <Action>
+            <MudButton Variant="Variant.Outlined" Color="Color.Default" StartIcon="@Icons.Material.Outlined.ArrowBack" OnClick="GoBack">
+                Volver
+            </MudButton>
+        </Action>
+    </PageHeader>
+
+    @if (_accessDenied)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+            No tienes permisos para editar terceros.
+        </MudAlert>
+    }
+    else if (_loading)
+    {
+        <div class="vp-card vp-transaction-loading">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            <MudText Typo="Typo.body2" Class="vp-muted">Cargando tercero...</MudText>
+        </div>
+    }
+    else if (_notFound)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.PersonSearch" Title="Tercero no encontrado" Message="El tercero solicitado no existe o no esta disponible." />
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(_validationMessage))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">
+                @_validationMessage
+            </MudAlert>
+        }
+
+        <section class="vp-card vp-transaction-form-card">
+            <div class="vp-transaction-form-grid">
+                <MudSelect T="int?" Label="Tipo de tercero" @bind-Value="_thirdPartyTypeId" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" Disabled="_saving">
+                    @foreach (var thirdPartyType in _thirdPartyTypes)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)thirdPartyType.Id)">@GetParameterLabel(thirdPartyType)</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudSelect T="int?" Label="Tipo de documento" @bind-Value="_documentTypeId" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" Disabled="_saving">
+                    @foreach (var documentType in _documentTypes)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)documentType.Id)">@GetParameterLabel(documentType)</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudTextField T="string" Label="Numero de documento" @bind-Value="_documentNumber" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="20" Required="true" Disabled="_saving" />
+                <MudTextField T="string" Label="Nombre / Razon social" @bind-Value="_name" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="60" Required="true" Disabled="_saving" />
+
+                <MudSelect T="int?" Label="Departamento" @bind-Value="_departmentId" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" Disabled="_saving">
+                    @foreach (var department in _departments)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)department.Id)">@GetParameterLabel(department)</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudSelect T="int?" Label="Ciudad" @bind-Value="_cityId" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" Disabled="_saving">
+                    @foreach (var city in _cities)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)city.Id)">@GetParameterLabel(city)</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudTextField T="string" Label="Telefono" @bind-Value="_phone" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="20" Required="true" Disabled="_saving" />
+                <MudSelect T="string" Label="Estado" @bind-Value="_status" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" Disabled="_saving">
+                    <MudSelectItem T="string" Value="@("A")">Activo</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("I")">Inactivo</MudSelectItem>
+                </MudSelect>
+
+                <MudTextField T="string" Label="Direccion" @bind-Value="_address" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="100" Lines="2" Disabled="@(_saving || _clearAddress)" />
+                <MudCheckBox T="bool" Label="Limpiar direccion" @bind-Value="_clearAddress" Color="Color.Error" Disabled="_saving" />
+            </div>
+        </section>
+
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-4">
+            Si marcas Limpiar direccion, se enviara ClearAddress = true. Si no cambias la direccion, no se actualizara accidentalmente.
+        </MudAlert>
+
+        <section class="vp-transaction-submit-row">
+            <MudButton Variant="Variant.Outlined" Color="Color.Default" Disabled="_saving" OnClick="GoBack">Cancelar</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" Disabled="_saving" StartIcon="@Icons.Material.Outlined.Save" OnClick="SaveAsync">
+                @if (_saving)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <span>Guardando...</span>
+                }
+                else
+                {
+                    <span>Guardar cambios</span>
+                }
+            </MudButton>
+        </section>
+    }
+</main>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private IReadOnlyList<ParameterOptionDto> _thirdPartyTypes = Array.Empty<ParameterOptionDto>();
+    private IReadOnlyList<ParameterOptionDto> _documentTypes = Array.Empty<ParameterOptionDto>();
+    private IReadOnlyList<ParameterOptionDto> _departments = Array.Empty<ParameterOptionDto>();
+    private IReadOnlyList<ParameterOptionDto> _cities = Array.Empty<ParameterOptionDto>();
+    private int? _thirdPartyTypeId;
+    private int? _documentTypeId;
+    private int? _departmentId;
+    private int? _cityId;
+    private string _documentNumber = string.Empty;
+    private string _name = string.Empty;
+    private string? _address;
+    private string? _originalAddress;
+    private string _phone = string.Empty;
+    private string _status = "A";
+    private bool _clearAddress;
+    private bool _loading;
+    private bool _saving;
+    private bool _accessDenied;
+    private bool _notFound;
+    private string _validationMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await PermissionState.LoadAsync();
+        _accessDenied = !PermissionState.HasPermission("terceros.actualizar");
+
+        if (!_accessDenied)
+        {
+            await LoadDataAsync();
+        }
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _loading = true;
+
+        try
+        {
+            var thirdPartyTask = ThirdPartyService.GetByIdAsync(Id);
+            var thirdPartyTypeTask = ParameterService.ListByClassCodeAsync("TIP-TER");
+            var documentTypeTask = ParameterService.ListByClassCodeAsync("TIP-DOC");
+            var departmentTask = ParameterService.ListByClassCodeAsync("DEP");
+            var cityTask = ParameterService.ListByClassCodeAsync("CIU");
+
+            await Task.WhenAll(thirdPartyTask, thirdPartyTypeTask, documentTypeTask, departmentTask, cityTask);
+
+            _thirdPartyTypes = thirdPartyTypeTask.Result.Data ?? Array.Empty<ParameterOptionDto>();
+            _documentTypes = documentTypeTask.Result.Data ?? Array.Empty<ParameterOptionDto>();
+            _departments = departmentTask.Result.Data ?? Array.Empty<ParameterOptionDto>();
+            _cities = cityTask.Result.Data ?? Array.Empty<ParameterOptionDto>();
+
+            if (!thirdPartyTask.Result.IsSuccess)
+            {
+                _notFound = true;
+                await HandleFailureAsync(thirdPartyTask.Result.Message);
+                return;
+            }
+
+            if (!thirdPartyTypeTask.Result.IsSuccess) await HandleFailureAsync(thirdPartyTypeTask.Result.Message);
+            else if (!documentTypeTask.Result.IsSuccess) await HandleFailureAsync(documentTypeTask.Result.Message);
+            else if (!departmentTask.Result.IsSuccess) await HandleFailureAsync(departmentTask.Result.Message);
+            else if (!cityTask.Result.IsSuccess) await HandleFailureAsync(cityTask.Result.Message);
+
+            LoadForm(thirdPartyTask.Result.Data);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void LoadForm(ThirdPartyDto? thirdParty)
+    {
+        if (thirdParty is null)
+        {
+            _notFound = true;
+            return;
+        }
+
+        _thirdPartyTypeId = thirdParty.ThirdPartyTypeId;
+        _documentTypeId = thirdParty.DocumentTypeId;
+        _documentNumber = thirdParty.DocumentNumber;
+        _name = thirdParty.Name;
+        _departmentId = thirdParty.DepartmentId;
+        _cityId = thirdParty.CityId;
+        _address = thirdParty.Address;
+        _originalAddress = thirdParty.Address;
+        _phone = thirdParty.Phone;
+        _status = thirdParty.Status;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!ValidateRequest())
+        {
+            Snackbar.Add(_validationMessage, Severity.Error);
+            return;
+        }
+
+        _saving = true;
+        _validationMessage = string.Empty;
+
+        try
+        {
+            var request = new ThirdPartyUpdateDto
+            {
+                ThirdPartyTypeId = _thirdPartyTypeId,
+                DocumentTypeId = _documentTypeId,
+                DocumentNumber = _documentNumber.Trim(),
+                Name = _name.Trim(),
+                DepartmentId = _departmentId,
+                CityId = _cityId,
+                Address = ResolveAddressForUpdate(),
+                Phone = _phone.Trim(),
+                Status = _status,
+                ClearAddress = _clearAddress
+            };
+
+            var response = await ThirdPartyService.UpdateAsync(Id, request);
+            if (!response.IsSuccess)
+            {
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            Snackbar.Add(string.IsNullOrWhiteSpace(response.Message) ? "Tercero actualizado correctamente." : response.Message, Severity.Success);
+            NavigationManager.NavigateTo($"/terceros/{Id}");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private string? ResolveAddressForUpdate()
+    {
+        if (_clearAddress)
+        {
+            return null;
+        }
+
+        var normalizedAddress = NormalizeOptional(_address);
+        return string.Equals(normalizedAddress, NormalizeOptional(_originalAddress), StringComparison.Ordinal) ? null : normalizedAddress;
+    }
+
+    private bool ValidateRequest()
+    {
+        _validationMessage = string.Empty;
+
+        if (!_thirdPartyTypeId.HasValue) _validationMessage = "El tipo de tercero es obligatorio.";
+        else if (!_documentTypeId.HasValue) _validationMessage = "El tipo de documento es obligatorio.";
+        else if (string.IsNullOrWhiteSpace(_documentNumber)) _validationMessage = "El numero de documento es obligatorio.";
+        else if (_documentNumber.Trim().Length > 20) _validationMessage = "El numero de documento no puede superar 20 caracteres.";
+        else if (string.IsNullOrWhiteSpace(_name)) _validationMessage = "El nombre es obligatorio.";
+        else if (_name.Trim().Length > 60) _validationMessage = "El nombre no puede superar 60 caracteres.";
+        else if (!_departmentId.HasValue) _validationMessage = "El departamento es obligatorio.";
+        else if (!_cityId.HasValue) _validationMessage = "La ciudad es obligatoria.";
+        else if (string.IsNullOrWhiteSpace(_phone)) _validationMessage = "El telefono es obligatorio.";
+        else if (_phone.Trim().Length > 20) _validationMessage = "El telefono no puede superar 20 caracteres.";
+        else if (!_clearAddress && !string.IsNullOrWhiteSpace(_address) && _address.Trim().Length > 100) _validationMessage = "La direccion no puede superar 100 caracteres.";
+        else if (!IsValidStatus(_status)) _validationMessage = "El estado debe ser A o I.";
+
+        return string.IsNullOrWhiteSpace(_validationMessage);
+    }
+
+    private void GoBack() => NavigationManager.NavigateTo($"/terceros/{Id}");
+
+    private async Task HandleFailureAsync(string? message)
+    {
+        var resolvedMessage = string.IsNullOrWhiteSpace(message) ? "No fue posible completar la operacion." : message;
+
+        if (IsUnauthorizedMessage(resolvedMessage))
+        {
+            await AuthService.LogoutAsync();
+            Snackbar.Add("Tu sesion termino. Inicia sesion nuevamente.", Severity.Warning);
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        _validationMessage = resolvedMessage;
+        Snackbar.Add(resolvedMessage, Severity.Error);
+    }
+
+    private static string? NormalizeOptional(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static bool IsValidStatus(string? status) => status is "A" or "I";
+
+    private static string GetParameterLabel(ParameterOptionDto parameter) => string.IsNullOrWhiteSpace(parameter.Code)
+        ? parameter.Description
+        : $"{parameter.Code} - {parameter.Description}";
+
+    private static bool IsUnauthorizedMessage(string? message) =>
+        !string.IsNullOrWhiteSpace(message)
+        && (message.StartsWith("Sesion expirada", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("Sesión expirada", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("No hay una sesion activa", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("No hay una sesión activa", StringComparison.OrdinalIgnoreCase));
+}

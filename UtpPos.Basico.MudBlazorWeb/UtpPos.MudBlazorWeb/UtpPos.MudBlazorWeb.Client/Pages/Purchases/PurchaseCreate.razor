@@ -1,0 +1,704 @@
+@page "/compras/nueva"
+@attribute [Authorize]
+@using UtpPos.MudBlazorWeb.Client.Components.Transactions
+@inject IPurchaseService PurchaseService
+@inject IBusinessService BusinessService
+@inject IProductService ProductService
+@inject IThirdPartyService ThirdPartyService
+@inject IParameterService ParameterService
+@inject IAuthService AuthService
+@inject PermissionStateService PermissionState
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<PageTitle>Nueva compra | VentasPro</PageTitle>
+
+<main class="vp-page vp-transaction-page">
+    <PageHeader Kicker="Compras"
+                Title="Registrar compra"
+                Subtitle="Registra entradas por compra con productos y pagos.">
+        <Action>
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Default"
+                       StartIcon="@Icons.Material.Outlined.ArrowBack"
+                       OnClick="GoBack">
+                Volver
+            </MudButton>
+        </Action>
+    </PageHeader>
+
+    @if (_accessDenied)
+    {
+        <WithoutPermission text="No tienes permisos para registrar compras." />
+    }
+    else if (_catalogLoading)
+    {
+        <TransactionLoading />
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(_validationMessage))
+        {
+            @* Mostrar mensajes de validación *@
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">
+                @_validationMessage
+            </MudAlert>
+        }
+
+        <TransactionBusinessMovementCard Businesses="@_businesses"
+                                         BusinessId="@_businessId"
+                                         BusinessIdChanged="SetBusinessAsync"
+                                         MovementTypeLabel="@_movementTypeLabel"
+                                         BusinessLocked="@_businessLocked"
+                                         Saving="@_saving" />
+
+        <ThirdPartySearchCard AriaLabel="Seleccion de proveedor"
+                              Kicker="Proveedor seleccionado"
+                              SelectedChipText="Proveedor seleccionado"
+                              ChangeButtonText="Cambiar proveedor"
+                              SearchingText="Buscando proveedores..."
+                              ResultsAriaLabel="Resultados de proveedores"
+                              InitialsFallback="PR"
+                              ShowThirdPartyType="true"
+                              DocumentTypes="@_documentTypes"
+                              Results="@_supplierResults"
+                              SelectedThirdParty="@_selectedThirdParty"
+                              DocumentTypeId="@_supplierDocumentTypeId"
+                              DocumentTypeIdChanged="@((int? value) => _supplierDocumentTypeId = value)"
+                              DocumentNumber="@_supplierDocumentNumber"
+                              DocumentNumberChanged="@((string value) => _supplierDocumentNumber = value)"
+                              NameSearch="@_supplierNameSearch"
+                              NameSearchChanged="@((string value) => _supplierNameSearch = value)"
+                              SearchMessage="@_supplierSearchMessage"
+                              Searching="@_supplierSearching"
+                              Disabled="@IsSupplierSearchDisabled"
+                              OnSearchByDocument="SearchSupplierByDocumentAsync"
+                              OnSearchByName="SearchSuppliersByNameAsync"
+                              OnClearSelected="ClearSelectedSupplier"
+                              OnSelectResult="SelectSupplier" />
+
+        <section class="vp-section-heading">
+            <div>
+                <h2>Productos</h2>
+                <p>Agrega al menos un producto comprado.</p>
+            </div>
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Outlined.Add"
+                       Disabled="_saving"
+                       OnClick="AddDetail">
+                Agregar producto
+            </MudButton>
+        </section>
+
+        <section class="vp-card vp-table-card" aria-label="Productos de la compra">
+            <div class="vp-table-scroll">
+                <table class="vp-inventory-table vp-transaction-entry-table">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Cantidad</th>
+                            <th>Valor unitario</th>
+                            <th>IVA %</th>
+                            <th>Subtotal</th>
+                            <th>Valor IVA</th>
+                            <th>Total</th>
+                            <th class="vp-inventory-actions-heading">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var detail in _details)
+                        {
+                            <tr>
+                                <td>
+                                    <MudSelect T="int?"
+                                               Label="Producto"
+                                               Value="detail.ProductId"
+                                               ValueChanged="@((int? value) => SetDetailProductAsync(detail, value))"
+                                               Variant="Variant.Outlined"
+                                               Margin="Margin.Dense"
+                                               Dense="true"
+                                               Disabled="_saving">
+                                        @foreach (var product in ProductsForSelectedBusiness)
+                                        {
+                                            <MudSelectItem T="int?" Value="@((int?)product.Id)">@GetProductLabel(product)</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </td>
+                                <td>
+                                    <MudNumericField T="decimal" @bind-Value="detail.Quantity" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Disabled="_saving" />
+                                </td>
+                                <td>
+                                    <MudNumericField T="decimal" @bind-Value="detail.UnitValue" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Disabled="_saving" />
+                                </td>
+                                <td>
+                                    <MudNumericField T="decimal" @bind-Value="detail.VatPercentage" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Disabled="_saving" />
+                                </td>
+                                <td>@FormatMoney(detail.Subtotal)</td>
+                                <td>@FormatMoney(detail.VatValue)</td>
+                                <td><strong>@FormatMoney(detail.Total)</strong></td>
+                                <td>
+                                    <div class="vp-inventory-row-actions">
+                                        <MudTooltip Text="Quitar producto">
+                                            <MudIconButton Icon="@Icons.Material.Outlined.Delete"
+                                                           Size="Size.Small"
+                                                           Color="Color.Error"
+                                                           Disabled="@(_saving || _details.Count == 1)"
+                                                           OnClick="@(() => RemoveDetail(detail))" />
+                                        </MudTooltip>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="vp-section-heading">
+            <div>
+                <h2>Pagos</h2>
+                <p>Agrega los medios de pago usados en la compra.</p>
+            </div>
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Outlined.AddCard"
+                       Disabled="_saving"
+                       OnClick="AddPayment">
+                Agregar pago
+            </MudButton>
+        </section>
+
+        <section class="vp-card vp-table-card" aria-label="Pagos de la compra">
+            <div class="vp-table-scroll">
+                <table class="vp-inventory-table vp-transaction-entry-table">
+                    <thead>
+                        <tr>
+                            <th>Medio de pago</th>
+                            <th>Valor recibido</th>
+                            <th>Valor cambio</th>
+                            <th>Valor aplicado</th>
+                            <th class="vp-inventory-actions-heading">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var payment in _payments)
+                        {
+                            <tr>
+                                <td>
+                                    <MudSelect T="int?"
+                                               Label="Medio de pago"
+                                               @bind-Value="payment.PaymentMethodId"
+                                               Variant="Variant.Outlined"
+                                               Margin="Margin.Dense"
+                                               Dense="true"
+                                               Disabled="_saving">
+                                        @foreach (var paymentMethod in _paymentMethods)
+                                        {
+                                            <MudSelectItem T="int?" Value="@((int?)paymentMethod.Id)">@GetParameterLabel(paymentMethod)</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </td>
+                                <td>
+                                    <MudNumericField T="decimal" @bind-Value="payment.ReceivedValue" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Disabled="_saving" />
+                                </td>
+                                <td>
+                                    <MudNumericField T="decimal" @bind-Value="payment.ChangeValue" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Disabled="_saving" />
+                                </td>
+                                <td><strong>@FormatMoney(payment.AppliedValue)</strong></td>
+                                <td>
+                                    <div class="vp-inventory-row-actions">
+                                        <MudTooltip Text="Quitar pago">
+                                            <MudIconButton Icon="@Icons.Material.Outlined.Delete"
+                                                           Size="Size.Small"
+                                                           Color="Color.Error"
+                                                           Disabled="@(_saving || _payments.Count == 1)"
+                                                           OnClick="@(() => RemovePayment(payment))" />
+                                        </MudTooltip>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <TransactionTotals Subtotal="Subtotal"
+                           VatValue="VatValue"
+                           Total="Total"
+                           Difference="Difference"
+                           TotalHelper="Compra" />
+
+        <TransactionActions Saving="_saving"
+                            SaveText="Registrar compra"
+                            OnCancel="GoBack"
+                            OnSave="SaveAsync" />
+    }
+</main>
+
+@code {
+    private readonly List<PurchaseDetailInput> _details = new() { new PurchaseDetailInput() };
+    private readonly List<PurchasePaymentInput> _payments = new() { new PurchasePaymentInput() };
+    private IReadOnlyList<BusinessDto> _businesses = Array.Empty<BusinessDto>();
+    private IReadOnlyList<ProductDto> _products = Array.Empty<ProductDto>();
+    private IReadOnlyList<ParameterOptionDto> _paymentMethods = Array.Empty<ParameterOptionDto>();
+    private IReadOnlyList<ParameterOptionDto> _documentTypes = Array.Empty<ParameterOptionDto>();
+    private IReadOnlyList<ThirdPartyDto> _supplierResults = Array.Empty<ThirdPartyDto>();
+    private ThirdPartyDto? _selectedThirdParty;
+    private AuthUserDto? _currentUser;
+    private int? _businessId;
+    private bool _businessLocked;
+    private int? _thirdPartyId;
+    private int? _movementTypeId;
+    private string _movementTypeLabel = string.Empty;
+    private int? _supplierDocumentTypeId;
+    private string _supplierDocumentNumber = string.Empty;
+    private string _supplierNameSearch = string.Empty;
+    private string _supplierSearchMessage = string.Empty;
+    private bool _catalogLoading;
+    private bool _supplierSearching;
+    private bool _saving;
+    private bool _accessDenied;
+    private string _validationMessage = string.Empty;
+
+    private IEnumerable<ProductDto> ProductsForSelectedBusiness => _businessId.HasValue
+        ? _products.Where(product => product.BusinessId == _businessId.Value || !product.BusinessId.HasValue)
+        : _products;
+
+    private decimal Subtotal => _details.Sum(detail => detail.Subtotal);
+    private decimal VatValue => _details.Sum(detail => detail.VatValue);
+    private decimal Total => _details.Sum(detail => detail.Total);
+    private decimal TotalPaid => _payments.Sum(payment => payment.AppliedValue);
+    private decimal Difference => Total - TotalPaid;
+    private bool IsSupplierSearchDisabled => _saving || _supplierSearching;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await PermissionState.LoadAsync();
+        _accessDenied = !PermissionState.HasPermission("compras.crear");
+
+        if (!_accessDenied)
+        {
+            await LoadCatalogsAsync();
+            ApplyCurrentUserBusiness();
+        }
+    }
+
+    private async Task LoadCatalogsAsync()
+    {
+        _catalogLoading = true;
+
+        try
+        {
+            var currentUserTask = AuthService.GetCurrentUserAsync();
+            var businessTask = BusinessService.ListAsync(new BusinessListFilterDto { Status = "A" });
+            var productTask = ProductService.ListAsync(new ProductListFilterDto { Status = "A" });
+            var paymentTask = ParameterService.ListByClassCodeAsync("MET-PAGO");
+            var movementTask = ParameterService.GetByCodeAsync("MOV-KDX-COM");
+            var documentTypeTask = ParameterService.ListByClassCodeAsync("TIP-DOC");
+
+            await Task.WhenAll(currentUserTask, businessTask, productTask, paymentTask, movementTask, documentTypeTask);
+
+            _currentUser = currentUserTask.Result.Data;
+            _businesses = businessTask.Result.Data ?? Array.Empty<BusinessDto>();
+            _products = productTask.Result.Data ?? Array.Empty<ProductDto>();
+            _paymentMethods = paymentTask.Result.Data ?? Array.Empty<ParameterOptionDto>();
+            _documentTypes = documentTypeTask.Result.Data ?? Array.Empty<ParameterOptionDto>();
+
+            if (movementTask.Result.Data is not null)
+            {
+                _movementTypeId = movementTask.Result.Data.Id;
+                _movementTypeLabel = movementTask.Result.Data.Description;
+            }
+
+            if (!currentUserTask.Result.IsSuccess || currentUserTask.Result.Data is null)
+                await HandleFailureAsync(string.IsNullOrWhiteSpace(currentUserTask.Result.Message) ? "No fue posible obtener el usuario autenticado." : currentUserTask.Result.Message);
+            else if (!businessTask.Result.IsSuccess)
+                await HandleFailureAsync(businessTask.Result.Message);
+            else if (!productTask.Result.IsSuccess)
+                await HandleFailureAsync(productTask.Result.Message);
+            else if (!paymentTask.Result.IsSuccess)
+                await HandleFailureAsync(paymentTask.Result.Message);
+            else if (!movementTask.Result.IsSuccess)
+                await HandleFailureAsync(movementTask.Result.Message);
+            else if (!documentTypeTask.Result.IsSuccess)
+                await HandleFailureAsync(documentTypeTask.Result.Message);
+        }
+        finally
+        {
+            _catalogLoading = false;
+        }
+    }
+
+    private void ApplyCurrentUserBusiness()
+    {
+        if (_currentUser?.BusinessId is not > 0)
+        {
+            _businessLocked = false;
+            return;
+        }
+
+        _businessLocked = true;
+        _businessId = _currentUser.BusinessId.Value;
+
+        if (!_businesses.Any(business => business.Id == _businessId.Value))
+        {
+            _businesses = _businesses.Concat(new[]
+            {
+                new BusinessDto
+                {
+                    Id = _businessId.Value,
+                    Name = string.IsNullOrWhiteSpace(_currentUser.BusinessName) ? $"Negocio #{_businessId.Value}" : _currentUser.BusinessName,
+                    Status = "A"
+                }
+            }).ToArray();
+        }
+    }
+
+    private Task SetBusinessAsync(int? businessId)
+    {
+        if (_businessLocked && _currentUser?.BusinessId is > 0)
+        {
+            _businessId = _currentUser.BusinessId.Value;
+            return Task.CompletedTask;
+        }
+
+        _businessId = businessId;
+        ClearSelectedSupplier(clearInputs: true);
+
+        foreach (var detail in _details.Where(detail => detail.ProductId.HasValue && !ProductsForSelectedBusiness.Any(product => product.Id == detail.ProductId.Value)))
+        {
+            detail.ProductId = null;
+            detail.ProductName = string.Empty;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task SearchSupplierByDocumentAsync()
+    {
+        if (!EnsureBusinessSelected())
+            return;
+
+        if (!_supplierDocumentTypeId.HasValue || _supplierDocumentTypeId.Value <= 0)
+        {
+            SetSupplierSearchMessage("Selecciona el tipo de documento.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_supplierDocumentNumber))
+        {
+            SetSupplierSearchMessage("Ingresa el numero de documento.");
+            return;
+        }
+
+        _supplierSearching = true;
+        _supplierSearchMessage = string.Empty;
+        _supplierResults = Array.Empty<ThirdPartyDto>();
+
+        try
+        {
+            var documentNumber = _supplierDocumentNumber.Trim();
+            var response = await ThirdPartyService.ListByBusinessAsync(_businessId!.Value, new ThirdPartyBusinessListFilterDto
+            {
+                DocumentTypeId = _supplierDocumentTypeId.Value,
+                DocumentNumber = documentNumber,
+                Status = "A"
+            });
+
+            if (!response.IsSuccess)
+            {
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            var exactMatch = (response.Data ?? Array.Empty<ThirdPartyBusinessDto>())
+                .FirstOrDefault(supplier => supplier.DocumentTypeId == _supplierDocumentTypeId.Value
+                    && string.Equals(supplier.DocumentNumber?.Trim(), documentNumber, StringComparison.OrdinalIgnoreCase));
+
+            if (exactMatch is null)
+            {
+                SetSupplierSearchMessage("No se encontró un proveedor con ese documento para el negocio seleccionado.");
+                return;
+            }
+
+            SelectSupplier(exactMatch.ToThirdParty());
+            Snackbar.Add("Proveedor seleccionado correctamente.", Severity.Success);
+        }
+        finally
+        {
+            _supplierSearching = false;
+        }
+    }
+
+    private async Task SearchSuppliersByNameAsync()
+    {
+        if (!EnsureBusinessSelected())
+            return;
+
+        if (string.IsNullOrWhiteSpace(_supplierNameSearch))
+        {
+            SetSupplierSearchMessage("Ingresa el nombre del proveedor.");
+            return;
+        }
+
+        _supplierSearching = true;
+        _supplierSearchMessage = string.Empty;
+        _supplierResults = Array.Empty<ThirdPartyDto>();
+
+        try
+        {
+            var response = await ThirdPartyService.ListByBusinessAsync(_businessId!.Value, new ThirdPartyBusinessListFilterDto
+            {
+                Name = _supplierNameSearch.Trim(),
+                Status = "A"
+            });
+
+            if (!response.IsSuccess)
+            {
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            _supplierResults = (response.Data ?? Array.Empty<ThirdPartyBusinessDto>())
+                .Select(supplier => supplier.ToThirdParty())
+                .ToArray();
+
+            if (_supplierResults.Count == 0)
+            {
+                SetSupplierSearchMessage("No se encontraron proveedores activos con ese nombre para el negocio seleccionado.");
+            }
+        }
+        finally
+        {
+            _supplierSearching = false;
+        }
+    }
+
+    private bool EnsureBusinessSelected()
+    {
+        if (_businessId.HasValue && _businessId.Value > 0)
+        {
+            return true;
+        }
+
+        SetSupplierSearchMessage("Selecciona primero el negocio de la compra.");
+        Snackbar.Add("Selecciona primero el negocio de la compra.", Severity.Warning);
+        return false;
+    }
+
+    private void SelectSupplier(ThirdPartyDto supplier)
+    {
+        _selectedThirdParty = supplier;
+        _thirdPartyId = supplier.Id;
+        _supplierResults = Array.Empty<ThirdPartyDto>();
+        _supplierSearchMessage = string.Empty;
+
+        if (_validationMessage == "El proveedor / tercero es obligatorio.")
+        {
+            _validationMessage = string.Empty;
+        }
+    }
+
+    private void ClearSelectedSupplier() => ClearSelectedSupplier(clearInputs: false);
+
+    private void ClearSelectedSupplier(bool clearInputs)
+    {
+        _selectedThirdParty = null;
+        _thirdPartyId = null;
+        _supplierResults = Array.Empty<ThirdPartyDto>();
+        _supplierSearchMessage = string.Empty;
+
+        if (clearInputs)
+        {
+            _supplierDocumentTypeId = null;
+            _supplierDocumentNumber = string.Empty;
+            _supplierNameSearch = string.Empty;
+        }
+    }
+
+    private void SetSupplierSearchMessage(string message)
+    {
+        _supplierSearchMessage = message;
+        _supplierResults = Array.Empty<ThirdPartyDto>();
+    }
+
+    private Task SetDetailProductAsync(PurchaseDetailInput detail, int? productId)
+    {
+        detail.ProductId = productId;
+        var product = _products.FirstOrDefault(item => item.Id == productId);
+        detail.ProductName = product?.Name ?? string.Empty;
+
+        if (product is not null)
+        {
+            detail.VatPercentage = product.VatPercentage;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private void AddDetail() => _details.Add(new PurchaseDetailInput());
+
+    private void RemoveDetail(PurchaseDetailInput detail)
+    {
+        if (_details.Count > 1)
+        {
+            _details.Remove(detail);
+        }
+    }
+
+    private void AddPayment() => _payments.Add(new PurchasePaymentInput());
+
+    private void RemovePayment(PurchasePaymentInput payment)
+    {
+        if (_payments.Count > 1)
+        {
+            _payments.Remove(payment);
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!ValidateRequest())
+        {
+            Snackbar.Add(_validationMessage, Severity.Error);
+            return;
+        }
+
+        _saving = true;
+        _validationMessage = string.Empty;
+
+        try
+        {
+            var request = new PurchaseCreateDto
+            {
+                BusinessId = _businessId!.Value,
+                ThirdPartyId = _thirdPartyId!.Value,
+                KardexMovementTypeId = _movementTypeId!.Value,
+                Details = _details.Select(detail => new PurchaseCreateDetailDto
+                {
+                    ProductId = detail.ProductId!.Value,
+                    Quantity = detail.Quantity,
+                    UnitValue = detail.UnitValue,
+                    VatPercentage = detail.VatPercentage
+                }).ToArray(),
+                Payments = _payments.Select(payment => new PurchaseCreatePaymentDto
+                {
+                    PaymentMethodId = payment.PaymentMethodId!.Value,
+                    ReceivedValue = payment.ReceivedValue,
+                    ChangeValue = payment.ChangeValue
+                }).ToArray()
+            };
+
+            var response = await PurchaseService.CreateAsync(request);
+            if (!response.IsSuccess)
+            {
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            Snackbar.Add(string.IsNullOrWhiteSpace(response.Message) ? "Compra registrada correctamente." : response.Message, Severity.Success);
+            var purchaseId = response.Data?.PurchaseId ?? 0;
+            NavigationManager.NavigateTo(purchaseId > 0 ? $"/compras/{purchaseId}" : "/compras");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private bool ValidateRequest()
+    {
+        _validationMessage = string.Empty;
+
+        if (!_businessId.HasValue || _businessId.Value <= 0)
+            return FailValidation("El negocio es obligatorio.");
+
+        if (!_thirdPartyId.HasValue || _thirdPartyId.Value <= 0)
+            return FailValidation("El proveedor / tercero es obligatorio.");
+
+        if (!_movementTypeId.HasValue || _movementTypeId.Value <= 0)
+            return FailValidation("El tipo de movimiento Kardex es obligatorio.");
+
+        if (_details.Count == 0)
+            return FailValidation("Agrega al menos un producto.");
+
+        foreach (var detail in _details)
+        {
+            if (!detail.ProductId.HasValue || detail.ProductId.Value <= 0)
+                return FailValidation("Selecciona el producto en todos los detalles.");
+            if (detail.Quantity <= 0)
+                return FailValidation("La cantidad debe ser mayor que cero.");
+            if (detail.UnitValue < 0)
+                return FailValidation("El valor unitario no puede ser negativo.");
+            if (detail.VatPercentage < 0)
+                return FailValidation("El porcentaje de IVA no puede ser negativo.");
+        }
+
+        if (_payments.Count == 0)
+            return FailValidation("Agrega al menos un pago.");
+
+        foreach (var payment in _payments)
+        {
+            if (!payment.PaymentMethodId.HasValue || payment.PaymentMethodId.Value <= 0)
+                return FailValidation("Selecciona el medio de pago en todos los pagos.");
+            if (payment.ReceivedValue < 0)
+                return FailValidation("El valor recibido no puede ser negativo.");
+            if (payment.ChangeValue < 0)
+                return FailValidation("El valor cambio no puede ser negativo.");
+            if (payment.ChangeValue > payment.ReceivedValue)
+                return FailValidation("El valor cambio no puede ser mayor que el valor recibido.");
+        }
+
+        return true;
+    }
+
+    private bool FailValidation(string message)
+    {
+        _validationMessage = message;
+        return false;
+    }
+
+    private async Task HandleFailureAsync(string? message)
+    {
+        var resolvedMessage = string.IsNullOrWhiteSpace(message)
+            ? "No fue posible completar la operación."
+            : message;
+
+        _validationMessage = resolvedMessage;
+        Snackbar.Add(resolvedMessage, Severity.Error);
+
+        await Task.CompletedTask;
+    }
+
+    private void GoBack() => NavigationManager.NavigateTo("/compras");
+
+    private static string GetProductLabel(ProductDto product) =>
+        string.IsNullOrWhiteSpace(product.ExternalId) ? product.Name : $"{product.Name} ({product.ExternalId})";
+
+    private static string GetParameterLabel(ParameterOptionDto option) =>
+        string.IsNullOrWhiteSpace(option.Code) ? option.Description : $"{option.Description}";
+
+    private static string FormatMoney(decimal value) => value.ToString("C2", CultureInfo.GetCultureInfo("es-CO"));
+
+    private sealed class PurchaseDetailInput
+    {
+        public int? ProductId { get; set; }
+        public string ProductName { get; set; } = string.Empty;
+        public decimal Quantity { get; set; } = 1;
+        public decimal UnitValue { get; set; }
+        public decimal VatPercentage { get; set; }
+        public decimal Subtotal => Quantity * UnitValue;
+        public decimal VatValue => Subtotal * VatPercentage / 100;
+        public decimal Total => Subtotal + VatValue;
+    }
+
+    private sealed class PurchasePaymentInput
+    {
+        public int? PaymentMethodId { get; set; }
+        public decimal ReceivedValue { get; set; }
+        public decimal ChangeValue { get; set; }
+        public decimal AppliedValue => ReceivedValue - ChangeValue;
+    }
+}

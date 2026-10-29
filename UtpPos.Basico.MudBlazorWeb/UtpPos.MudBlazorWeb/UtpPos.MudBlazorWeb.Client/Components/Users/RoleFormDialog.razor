@@ -1,0 +1,246 @@
+@inject IRbacManagementService RbacManagementService
+@inject IBusinessService BusinessService
+@inject IAuthService AuthService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<MudDialog>
+    <DialogContent>
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="mb-4">
+                @_errorMessage
+            </MudAlert>
+        }
+
+        <MudForm @ref="_form">
+            <div class="vp-rbac-form-grid">
+                <MudSelect T="int?"
+                           Label="Negocio"
+                           @bind-Value="_model.BusinessId"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Clearable="true"
+                           Disabled="_saving || _catalogLoading">
+                    <MudSelectItem T="int?" Value="@((int?)null)">Global</MudSelectItem>
+                    @foreach (var business in _businesses)
+                    {
+                        <MudSelectItem T="int?" Value="@business.Id">@business.Name</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudTextField T="string"
+                              Label="Nombre del rol"
+                              @bind-Value="_model.Name"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Required="true"
+                              RequiredError="El nombre del rol es obligatorio."
+                              MaxLength="80"
+                              Disabled="_saving" />
+
+                <MudTextField T="string"
+                              Label="Descripcion"
+                              @bind-Value="_model.Description"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              MaxLength="250"
+                              Lines="3"
+                              Disabled="_saving" />
+
+                <MudSelect T="string"
+                           Label="Rol de sistema"
+                           @bind-Value="_model.IsSystem"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Disabled="_saving">
+                    <MudSelectItem T="string" Value="@("N")">No</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("S")">Si</MudSelectItem>
+                </MudSelect>
+
+                <MudSelect T="string"
+                           Label="Acceso total"
+                           @bind-Value="_model.FullAccess"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Disabled="_saving">
+                    <MudSelectItem T="string" Value="@("N")">No</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("S")">Si</MudSelectItem>
+                </MudSelect>
+
+                <MudSelect T="string"
+                           Label="Estado"
+                           @bind-Value="_model.Status"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Disabled="_saving">
+                    <MudSelectItem T="string" Value="@("A")">Activo</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("I")">Inactivo</MudSelectItem>
+                </MudSelect>
+            </div>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving" OnClick="SaveAsync">
+            @if (_saving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Guardando...</span>
+            }
+            else
+            {
+                <span>@(_isEditing ? "Guardar cambios" : "Crear rol")</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance Dialog { get; set; } = null!;
+    [Parameter] public RbacRoleDto? Role { get; set; }
+
+    private readonly RoleFormModel _model = new();
+    private MudForm? _form;
+    private IReadOnlyList<BusinessDto> _businesses = Array.Empty<BusinessDto>();
+    private bool _saving;
+    private bool _catalogLoading;
+    private bool _isEditing;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isEditing = Role is not null;
+        if (Role is not null)
+        {
+            _model.BusinessId = Role.BusinessId;
+            _model.Name = Role.Name;
+            _model.Description = Role.Description;
+            _model.IsSystem = Role.IsSystem;
+            _model.FullAccess = Role.FullAccess;
+            _model.Status = Role.Status;
+        }
+
+        _catalogLoading = true;
+        try
+        {
+            var response = await BusinessService.ListAsync(new BusinessListFilterDto { Status = "A" });
+            if (response.IsSuccess)
+            {
+                _businesses = response.Data ?? Array.Empty<BusinessDto>();
+            }
+            else
+            {
+                _errorMessage = response.Message;
+            }
+        }
+        finally
+        {
+            _catalogLoading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_form is null)
+        {
+            return;
+        }
+
+        await _form.Validate();
+        if (!_form.IsValid)
+        {
+            return;
+        }
+
+        _saving = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            if (_isEditing && Role is not null)
+            {
+                var response = await RbacManagementService.UpdateRoleAsync(Role.Id, new RbacRoleUpdateDto
+                {
+                    RoleId = Role.Id,
+                    BusinessId = _model.BusinessId,
+                    Name = _model.Name.Trim(),
+                    Description = string.IsNullOrWhiteSpace(_model.Description) ? null : _model.Description.Trim(),
+                    IsSystem = _model.IsSystem,
+                    FullAccess = _model.FullAccess,
+                    Status = _model.Status
+                });
+
+                if (!response.IsSuccess)
+                {
+                    if (await HandleUnauthorizedAsync(response.Message))
+                    {
+                        return;
+                    }
+
+                    _errorMessage = response.Message;
+                    return;
+                }
+
+                Dialog.Close(DialogResult.Ok("Rol actualizado correctamente."));
+                return;
+            }
+
+            var createResponse = await RbacManagementService.CreateRoleAsync(new RbacRoleCreateDto
+            {
+                BusinessId = _model.BusinessId,
+                Name = _model.Name.Trim(),
+                Description = string.IsNullOrWhiteSpace(_model.Description) ? null : _model.Description.Trim(),
+                IsSystem = _model.IsSystem,
+                FullAccess = _model.FullAccess,
+                Status = _model.Status
+            });
+
+            if (!createResponse.IsSuccess)
+            {
+                if (await HandleUnauthorizedAsync(createResponse.Message))
+                {
+                    return;
+                }
+
+                _errorMessage = createResponse.Message;
+                return;
+            }
+
+            Dialog.Close(DialogResult.Ok("Rol creado correctamente."));
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task<bool> HandleUnauthorizedAsync(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message)
+            || (!message.StartsWith("Sesion expirada", StringComparison.OrdinalIgnoreCase)
+                && !message.StartsWith("No hay una sesion activa", StringComparison.OrdinalIgnoreCase)
+                && !message.StartsWith("Sesi", StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        await AuthService.LogoutAsync();
+        Dialog.Cancel();
+        Snackbar.Add("Tu sesion termino. Inicia sesion nuevamente.", Severity.Warning);
+        NavigationManager.NavigateTo("/login", replace: true);
+        return true;
+    }
+
+    private sealed class RoleFormModel
+    {
+        public int? BusinessId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string IsSystem { get; set; } = "N";
+        public string FullAccess { get; set; } = "N";
+        public string Status { get; set; } = "A";
+    }
+}

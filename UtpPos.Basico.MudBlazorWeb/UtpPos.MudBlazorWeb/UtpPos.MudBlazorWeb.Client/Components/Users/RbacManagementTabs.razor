@@ -1,0 +1,98 @@
+@inject PermissionStateService PermissionState
+
+@if (!_visibleTabs.Any())
+{
+    <div class="vp-card vp-rbac-empty">
+        <MudIcon Icon="@Icons.Material.Outlined.Lock" />
+        <div>
+            <strong>Sin permisos de administración</strong>
+            <span>No tienes permisos para gestionar usuarios, roles o permisos.</span>
+        </div>
+    </div>
+}
+else
+{
+    <section class="vp-rbac-tabs vp-card" role="tablist" aria-label="Gestión RBAC">
+        @foreach (var tab in _visibleTabs)
+        {
+            <button type="button" class="vp-rbac-tab @GetTabClass(tab.Key)" role="tab"
+                    aria-selected="@(_activeTabKey == tab.Key)" @onclick="() => SelectTab(tab.Key)">
+                <MudIcon Icon="@tab.Icon" Size="Size.Small" />
+                <span>@tab.Title</span>
+            </button>
+        }
+    </section>
+
+    <section class="vp-rbac-panel">
+        @switch (_activeTabKey)
+        {
+            case "users":
+                <UserManagementPanel />
+                break;
+
+            case "roles":
+                <RoleManagementPanel />
+                break;
+
+            case "permissions":
+                <PermissionManagementPanel />
+                break;
+        }
+    </section>
+}
+
+@code {
+    private string? _activeTabKey;
+
+    private readonly List<RbacTabOption> _tabs =
+    [
+        new(
+            Key: "users",
+            Title: "Usuarios",
+            Icon: Icons.Material.Outlined.ManageAccounts,
+            PermissionName: "usuarios.listar"
+        ),
+        new(
+            Key: "roles",
+            Title: "Roles",
+            Icon: Icons.Material.Outlined.AdminPanelSettings,
+            PermissionName: "roles.listar"
+        ),
+        new(
+            Key: "permissions",
+            Title: "Permisos",
+            Icon: Icons.Material.Outlined.Key,
+            PermissionName: "permisos.listar"
+        )
+    ];
+
+    private List<RbacTabOption> _visibleTabs = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await PermissionState.LoadAsync();
+
+        _visibleTabs = _tabs
+            .Where(tab => PermissionState.HasPermission(tab.PermissionName))
+            .ToList();
+
+        _activeTabKey = _visibleTabs.FirstOrDefault()?.Key;
+    }
+
+    private void SelectTab(string key)
+    {
+        _activeTabKey = key;
+    }
+
+    private string GetTabClass(string key)
+    {
+        return _activeTabKey == key ? "vp-rbac-tab--active" : string.Empty;
+    }
+
+    private sealed record RbacTabOption(
+        string Key,
+        string Title,
+        string Icon,
+        string PermissionName
+    );
+}

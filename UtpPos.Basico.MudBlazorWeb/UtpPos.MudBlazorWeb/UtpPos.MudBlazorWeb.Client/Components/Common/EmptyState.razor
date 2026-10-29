@@ -1,0 +1,11 @@
+<div class="vp-card pa-8 text-center">
+    <MudIcon Icon="@Icon" Size="Size.Large" Color="Color.Secondary" />
+    <MudText Typo="Typo.subtitle1" Class="mt-3">@Title</MudText>
+    <MudText Typo="Typo.body2" Class="vp-muted mt-1">@Message</MudText>
+</div>
+
+@code {
+    [Parameter] public string Icon { get; set; } = Icons.Material.Outlined.Inbox;
+    [Parameter] public string Title { get; set; } = "Sin resultados";
+    [Parameter] public string Message { get; set; } = "No hay información para mostrar.";
+}

@@ -1,0 +1,215 @@
+@inject IInventoryService InventoryService
+@inject IAuthService AuthService
+@inject PermissionStateService PermissionState
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<section class="vp-inventory-panel-stack">
+    <InventorySummaryCards Items="VisibleInventory" RecentMovements="0" />
+
+    <div class="vp-section-heading">
+        <div>
+            <h2>Acciones rapidas</h2>
+            <p>Operaciones frecuentes relacionadas con inventario.</p>
+        </div>
+    </div>
+
+    <InventoryActionBar CanRegisterPurchase="_canRegisterPurchase"
+                        CanRegisterSale="_canRegisterSale"
+                        CanAdjustInventory="_canRegisterMovement"
+                        CanExportInventory="_canExportInventory"
+                        OnRegisterPurchase="RegisterPurchaseAsync"
+                        OnRegisterSale="RegisterSaleAsync"
+                        OnAdjustInventory="ShowAdjustmentConstructionAsync"
+                        OnExportInventory="ShowExportConstructionAsync" />
+
+    <div class="vp-section-heading">
+        <div>
+            <h2>Inventario actual</h2>
+            <p>Consulta stock, limites y costos vigentes por producto.</p>
+        </div>
+    </div>
+
+    <InventoryFilterPanel Filter="_filter"
+                          Loading="_loading"
+                          OnlyLowStock="_onlyLowStock"
+                          OnlyLowStockChanged="SetOnlyLowStockAsync"
+                          OnSearch="LoadInventoryAsync"
+                          OnClear="ClearFiltersAsync" />
+
+    @if (_accessDenied)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+            No tienes permisos para consultar inventario.
+        </MudAlert>
+    }
+    else if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+            @_errorMessage
+        </MudAlert>
+    }
+    else if (_loading)
+    {
+        <div class="vp-card vp-inventory-loading">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            <MudText Typo="Typo.body2" Class="vp-muted">Consultando inventario...</MudText>
+        </div>
+    }
+    else if (VisibleInventory.Count == 0)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.Inventory2"
+                    Title="No se encontro inventario"
+                    Message="Ajusta los filtros para consultar el stock disponible." />
+    }
+    else
+    {
+        <InventoryTable Items="VisibleInventory"
+                        CanViewKardex="_canViewKardex"
+                        CanRegisterMovement="_canRegisterMovement"
+                        OnViewKardex="ViewKardexAsync"
+                        OnRegisterMovement="RegisterMovementAsync" />
+    }
+</section>
+
+@code {
+    [Parameter] public EventCallback<InventoryDto> OnViewKardex { get; set; }
+
+    private readonly InventoryListFilterDto _filter = new() { Status = "A" };
+    private IReadOnlyList<InventoryDto> _inventory = Array.Empty<InventoryDto>();
+    private bool _loading;
+    private bool _accessDenied;
+    private bool _onlyLowStock;
+    private bool _canViewKardex;
+    private bool _canRegisterMovement;
+    private bool _canRegisterPurchase;
+    private bool _canRegisterSale;
+    private bool _canExportInventory;
+    private string _errorMessage = string.Empty;
+
+    private IReadOnlyList<InventoryDto> VisibleInventory => _onlyLowStock
+        ? _inventory.Where(IsLowStock).ToArray()
+        : _inventory;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await PermissionState.LoadAsync();
+
+        _accessDenied = !PermissionState.HasPermission("inventario.listar");
+        _canViewKardex = PermissionState.HasPermission("kardex.listar");
+        _canRegisterMovement = PermissionState.HasPermission("inventario.movimiento");
+        _canRegisterPurchase = PermissionState.HasPermission("compras.crear");
+        _canRegisterSale = PermissionState.HasPermission("ventas.crear");
+        _canExportInventory = PermissionState.HasPermission("inventario.exportar");
+
+        if (!_accessDenied)
+        {
+            await LoadInventoryAsync();
+        }
+    }
+
+    private async Task LoadInventoryAsync()
+    {
+        if (!PermissionState.HasPermission("inventario.listar"))
+        {
+            _accessDenied = true;
+            return;
+        }
+
+        _loading = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var response = await InventoryService.ListAsync(_filter);
+
+            if (!response.IsSuccess)
+            {
+                _inventory = Array.Empty<InventoryDto>();
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            _inventory = response.Data ?? Array.Empty<InventoryDto>();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        _filter.BusinessId = null;
+        _filter.ProductId = null;
+        _filter.ProductName = null;
+        _filter.Status = "A";
+        _onlyLowStock = false;
+
+        await LoadInventoryAsync();
+    }
+
+    private Task SetOnlyLowStockAsync(bool value)
+    {
+        _onlyLowStock = value;
+        return Task.CompletedTask;
+    }
+
+    private Task ViewKardexAsync(InventoryDto inventory) =>
+        OnViewKardex.InvokeAsync(inventory);
+
+    private Task RegisterMovementAsync(InventoryDto inventory)
+    {
+        Snackbar.Add($"Registro de movimiento para {inventory.ProductName}: funcionalidad en construccion.", Severity.Info);
+        return Task.CompletedTask;
+    }
+
+    private Task RegisterPurchaseAsync()
+    {
+        NavigationManager.NavigateTo("/compras/nueva");
+        return Task.CompletedTask;
+    }
+
+    private Task RegisterSaleAsync()
+    {
+        NavigationManager.NavigateTo("/ventas/nueva");
+        return Task.CompletedTask;
+    }
+
+    private Task ShowAdjustmentConstructionAsync() => ShowConstructionAsync("Ajuste de inventario");
+
+    private Task ShowExportConstructionAsync() => ShowConstructionAsync("Exportar inventario");
+
+    private Task ShowConstructionAsync(string action)
+    {
+        Snackbar.Add($"{action}: funcionalidad en construccion.", Severity.Info);
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleFailureAsync(string? message)
+    {
+        var resolvedMessage = string.IsNullOrWhiteSpace(message)
+            ? "No fue posible consultar el inventario."
+            : message;
+
+        if (IsUnauthorizedMessage(resolvedMessage))
+        {
+            await AuthService.LogoutAsync();
+            Snackbar.Add("Tu sesion termino. Inicia sesion nuevamente.", Severity.Warning);
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        _errorMessage = resolvedMessage;
+        Snackbar.Add(resolvedMessage, Severity.Error);
+    }
+
+    private static bool IsLowStock(InventoryDto item) =>
+        item.CurrentStock <= item.MinimumStock;
+
+    private static bool IsUnauthorizedMessage(string? message) =>
+        !string.IsNullOrWhiteSpace(message)
+        && (message.StartsWith("Sesion expirada", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("No hay una sesion activa", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("Sesi", StringComparison.OrdinalIgnoreCase));
+}

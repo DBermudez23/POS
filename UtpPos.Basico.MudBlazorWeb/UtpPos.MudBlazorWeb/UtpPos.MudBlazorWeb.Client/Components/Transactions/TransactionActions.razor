@@ -1,0 +1,40 @@
+<section class="vp-transaction-submit-row">
+    <MudButton Variant="Variant.Outlined" Color="Color.Default" Disabled="@Saving" OnClick="OnCancel">
+        Cancelar
+    </MudButton>
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Secondary"
+               Disabled="@(Saving || DisableSave)"
+               StartIcon="@Icons.Material.Outlined.Save"
+               OnClick="OnSave">
+        @if (Saving)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            <span>@SavingText</span>
+        }
+        else
+        {
+            <span>@SaveText</span>
+        }
+    </MudButton>
+</section>
+
+@code {
+    [Parameter]
+    public bool Saving { get; set; }
+
+    [Parameter]
+    public bool DisableSave { get; set; }
+
+    [Parameter]
+    public string SavingText { get; set; } = "Registrando...";
+
+    [Parameter]
+    public string SaveText { get; set; } = "Guardar";
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    [Parameter]
+    public EventCallback OnSave { get; set; }
+}

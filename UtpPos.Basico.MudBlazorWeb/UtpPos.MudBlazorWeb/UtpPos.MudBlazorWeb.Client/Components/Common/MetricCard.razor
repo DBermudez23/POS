@@ -1,0 +1,27 @@
+<article class="vp-card vp-metric-card" style="--metric-color:@AccentColor; --metric-soft:@SoftColor;">
+    <div class="vp-metric-head">
+        <span class="vp-metric-label">@Label</span>
+        <span class="vp-metric-icon">
+            <MudIcon Icon="@Icon" Size="Size.Small" />
+        </span>
+    </div>
+    <div class="vp-metric-value">@Value</div>
+    <div class="vp-metric-foot">
+        @if (!string.IsNullOrWhiteSpace(Trend))
+        {
+            <TrendBadge Text="@Trend" Positive="@TrendPositive" />
+        }
+        <span>@Helper</span>
+    </div>
+</article>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Value { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Icon { get; set; } = string.Empty;
+    [Parameter] public string AccentColor { get; set; } = "#167B8E";
+    [Parameter] public string SoftColor { get; set; } = "#E5F8FB";
+    [Parameter] public string? Trend { get; set; }
+    [Parameter] public bool TrendPositive { get; set; } = true;
+    [Parameter] public string? Helper { get; set; }
+}

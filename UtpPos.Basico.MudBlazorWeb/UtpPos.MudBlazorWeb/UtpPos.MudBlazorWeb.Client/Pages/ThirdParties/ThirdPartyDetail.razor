@@ -1,0 +1,413 @@
+@page "/terceros/{Id:int}"
+@attribute [Authorize]
+@inject IThirdPartyService ThirdPartyService
+@inject IParameterService ParameterService
+@inject IAuthService AuthService
+@inject PermissionStateService PermissionState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<PageTitle>Detalle tercero | VentasPro</PageTitle>
+
+<main class="vp-page vp-transaction-page vp-thirdparty-page">
+    <PageHeader Kicker="Terceros" Title="Detalle de tercero" Subtitle="Consulta la informacion comercial y de contacto del tercero.">
+        <Action>
+            <div class="vp-transaction-header-actions">
+                <MudButton Variant="Variant.Outlined" Color="Color.Default" StartIcon="@Icons.Material.Outlined.ArrowBack" OnClick="GoBack">
+                    Volver
+                </MudButton>
+                @if (_canEdit && _thirdParty is not null)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Edit" OnClick="GoToEdit">
+                        Editar
+                    </MudButton>
+                }
+                @if (_canDelete && _thirdParty is not null && IsActive(_thirdParty.Status))
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Error" Disabled="_deleting" StartIcon="@Icons.Material.Outlined.Block" OnClick="InactivateAsync">
+                        Inactivar
+                    </MudButton>
+                }
+            </div>
+        </Action>
+    </PageHeader>
+
+    @if (_accessDenied)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+            No tienes permisos para consultar terceros.
+        </MudAlert>
+    }
+    else if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+            @_errorMessage
+        </MudAlert>
+    }
+    else if (_loading)
+    {
+        <div class="vp-card vp-transaction-loading">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            <MudText Typo="Typo.body2" Class="vp-muted">Consultando tercero...</MudText>
+        </div>
+    }
+    else if (_thirdParty is null)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.PersonSearch"
+                    Title="Tercero no encontrado"
+                    Message="El tercero solicitado no existe o no esta disponible." />
+    }
+    else
+    {
+        <section class="vp-card vp-thirdparty-profile">
+            <div class="vp-thirdparty-profile-main">
+                <div class="vp-thirdparty-avatar" aria-hidden="true">@GetInitials(_thirdParty.Name)</div>
+                <div class="vp-thirdparty-profile-copy">
+                    <span class="vp-thirdparty-eyebrow">
+                        <MudIcon Icon="@Icons.Material.Outlined.AssignmentInd" Size="Size.Small" />
+                        @ResolveThirdPartyType(_thirdParty)
+                    </span>
+                    <h2>@_thirdParty.Name</h2>
+                    <div class="vp-thirdparty-document-line">
+                        <MudIcon Icon="@Icons.Material.Outlined.Badge" Size="Size.Small" />
+                        <span>@ResolveText(_thirdParty.DocumentTypeName, $"Tipo documento #{_thirdParty.DocumentTypeId}")</span>
+                        <strong>@_thirdParty.DocumentNumber</strong>
+                    </div>
+                </div>
+            </div>
+
+            <aside class="vp-thirdparty-profile-side" aria-label="Resumen del tercero">
+                <div class="vp-thirdparty-side-stat">
+                    <span>Estado</span>
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@GetStatusColor(_thirdParty.Status)">
+                        @ResolveStatus(_thirdParty.Status)
+                    </MudChip>
+                </div>
+                <div class="vp-thirdparty-side-stat">
+                    <span>Creacion</span>
+                    <strong>@_thirdParty.CreatedAt.ToString("dd MMM yyyy")</strong>
+                </div>
+            </aside>
+        </section>
+
+        <section class="vp-thirdparty-content-grid">
+            <div class="vp-thirdparty-detail-page">
+                <article class="vp-card vp-thirdparty-panel">
+                    <header class="vp-thirdparty-panel-header">
+                        <div class="vp-thirdparty-panel-title">
+                            <span class="vp-thirdparty-panel-icon">
+                                <MudIcon Icon="@Icons.Material.Outlined.Apartment" Size="Size.Small" />
+                            </span>
+                            <div>
+                                <h3>Informacion comercial</h3>
+                                <p>Identificación global del tercero.</p>
+                            </div>
+                        </div>
+                    </header>
+
+                    <div class="vp-thirdparty-info-grid">
+                        <div class="vp-thirdparty-info-card">
+                            <span class="vp-thirdparty-info-label">
+                                <MudIcon Icon="@Icons.Material.Outlined.Groups" Size="Size.Small" />
+                                Tipo tercero
+                            </span>
+                            <strong class="vp-thirdparty-info-value">@ResolveThirdPartyType(_thirdParty)</strong>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="vp-card vp-thirdparty-panel">
+                    <header class="vp-thirdparty-panel-header">
+                        <div class="vp-thirdparty-panel-title">
+                            <span class="vp-thirdparty-panel-icon">
+                                <MudIcon Icon="@Icons.Material.Outlined.LocationOn" Size="Size.Small" />
+                            </span>
+                            <div>
+                                <h3>Ubicacion</h3>
+                                <p>Direccion y division geografica registrada.</p>
+                            </div>
+                        </div>
+                    </header>
+
+                    <div class="vp-thirdparty-info-grid">
+                        <div class="vp-thirdparty-info-card">
+                            <span class="vp-thirdparty-info-label">
+                                <MudIcon Icon="@Icons.Material.Outlined.Map" Size="Size.Small" />
+                                Departamento
+                            </span>
+                            <strong class="vp-thirdparty-info-value">@ResolveText(_thirdParty.DepartmentName, $"Departamento #{_thirdParty.DepartmentId}")</strong>
+                        </div>
+                        <div class="vp-thirdparty-info-card">
+                            <span class="vp-thirdparty-info-label">
+                                <MudIcon Icon="@Icons.Material.Outlined.LocationCity" Size="Size.Small" />
+                                Ciudad
+                            </span>
+                            <strong class="vp-thirdparty-info-value">@ResolveText(_thirdParty.CityName, $"Ciudad #{_thirdParty.CityId}")</strong>
+                        </div>
+                        <div class="vp-thirdparty-info-card wide">
+                            <span class="vp-thirdparty-info-label">
+                                <MudIcon Icon="@Icons.Material.Outlined.HomeWork" Size="Size.Small" />
+                                Direccion
+                            </span>
+                            <strong class="vp-thirdparty-info-value @(string.IsNullOrWhiteSpace(_thirdParty.Address) ? "muted" : string.Empty)">
+                                @ResolveText(_thirdParty.Address, "Sin direccion registrada")
+                            </strong>
+                        </div>
+                    </div>
+                </article>
+            </div>
+
+            <aside class="vp-thirdparty-rail">
+                <article class="vp-card vp-thirdparty-status-card @GetStatusCardClass(_thirdParty.Status)">
+                    <h3>Estado operativo</h3>
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="@GetStatusColor(_thirdParty.Status)">
+                        @ResolveStatus(_thirdParty.Status)
+                    </MudChip>
+                    <p>@GetStatusDescription(_thirdParty.Status)</p>
+                </article>
+
+                <article class="vp-card vp-thirdparty-panel">
+                    <header class="vp-thirdparty-panel-header">
+                        <div class="vp-thirdparty-panel-title">
+                            <span class="vp-thirdparty-panel-icon">
+                                <MudIcon Icon="@Icons.Material.Outlined.ContactPhone" Size="Size.Small" />
+                            </span>
+                            <div>
+                                <h3>Contacto</h3>
+                                <p>Canales principales del tercero.</p>
+                            </div>
+                        </div>
+                    </header>
+
+                    <div class="vp-thirdparty-quick-list">
+                        <div class="vp-thirdparty-quick-item">
+                            <MudIcon Icon="@Icons.Material.Outlined.Phone" Size="Size.Small" />
+                            <div>
+                                <span>Telefono</span>
+                                <strong>@ResolveText(_thirdParty.Phone, "Sin telefono")</strong>
+                            </div>
+                        </div>
+                        <div class="vp-thirdparty-quick-item">
+                            <MudIcon Icon="@Icons.Material.Outlined.Badge" Size="Size.Small" />
+                            <div>
+                                <span>Documento</span>
+                                <strong>@_thirdParty.DocumentNumber</strong>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="vp-card vp-thirdparty-panel">
+                    <header class="vp-thirdparty-panel-header">
+                        <div class="vp-thirdparty-panel-title">
+                            <span class="vp-thirdparty-panel-icon">
+                                <MudIcon Icon="@Icons.Material.Outlined.History" Size="Size.Small" />
+                            </span>
+                            <div>
+                                <h3>Auditoria</h3>
+                                <p>Origen del registro.</p>
+                            </div>
+                        </div>
+                    </header>
+
+                    <div class="vp-thirdparty-quick-list">
+                        <div class="vp-thirdparty-quick-item">
+                            <MudIcon Icon="@Icons.Material.Outlined.Person" Size="Size.Small" />
+                            <div>
+                                <span>Creado por</span>
+                                <strong>@ResolveText(_thirdParty.CreatedByUserName, $"Usuario #{_thirdParty.CreatedByUserId}")</strong>
+                            </div>
+                        </div>
+                        <div class="vp-thirdparty-quick-item">
+                            <MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" Size="Size.Small" />
+                            <div>
+                                <span>Fecha creacion</span>
+                                <strong>@_thirdParty.CreatedAt.ToString("dd/MM/yyyy HH:mm")</strong>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            </aside>
+        </section>
+    }
+</main>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private ThirdPartyDto? _thirdParty;
+    private IReadOnlyList<ParameterOptionDto> _thirdPartyTypes = Array.Empty<ParameterOptionDto>();
+    private bool _loading;
+    private bool _accessDenied;
+    private bool _canEdit;
+    private bool _canDelete;
+    private bool _deleting;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await PermissionState.LoadAsync();
+
+        _accessDenied = !PermissionState.HasPermission("terceros.consultar");
+        _canEdit = PermissionState.HasPermission("terceros.actualizar");
+        _canDelete = PermissionState.HasPermission("terceros.eliminar");
+
+        if (!_accessDenied)
+        {
+            await LoadThirdPartyAsync();
+        }
+    }
+
+    private async Task LoadThirdPartyAsync()
+    {
+        _loading = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var thirdPartyTask = ThirdPartyService.GetByIdAsync(Id);
+            var thirdPartyTypeTask = ParameterService.ListByClassCodeAsync("TIP-TER");
+
+            await Task.WhenAll(thirdPartyTask, thirdPartyTypeTask);
+
+            var response = thirdPartyTask.Result;
+            if (!response.IsSuccess)
+            {
+                _thirdParty = null;
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            _thirdParty = response.Data;
+
+            if (thirdPartyTypeTask.Result.IsSuccess)
+            {
+                _thirdPartyTypes = thirdPartyTypeTask.Result.Data ?? Array.Empty<ParameterOptionDto>();
+            }
+            else
+            {
+                Snackbar.Add(string.IsNullOrWhiteSpace(thirdPartyTypeTask.Result.Message)
+                    ? "No fue posible cargar el catalogo de tipos de tercero."
+                    : thirdPartyTypeTask.Result.Message,
+                    Severity.Warning);
+            }
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void GoBack() => NavigationManager.NavigateTo("/terceros");
+
+    private void GoToEdit() => NavigationManager.NavigateTo($"/terceros/{Id}/editar");
+
+    private async Task InactivateAsync()
+    {
+        if (_thirdParty is null || !_canDelete || !IsActive(_thirdParty.Status))
+        {
+            return;
+        }
+
+        var confirmed = await DialogService.ShowMessageBox(
+            "Inactivar tercero",
+            $"Deseas inactivar {_thirdParty.Name}? Esta accion no elimina el registro fisicamente.",
+            yesText: "Inactivar",
+            noText: null,
+            cancelText: "Cancelar");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        _deleting = true;
+
+        try
+        {
+            var response = await ThirdPartyService.DeleteAsync(_thirdParty.Id);
+            if (!response.IsSuccess)
+            {
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            Snackbar.Add(string.IsNullOrWhiteSpace(response.Message) ? "Tercero inactivado correctamente." : response.Message, Severity.Success);
+            await LoadThirdPartyAsync();
+        }
+        finally
+        {
+            _deleting = false;
+        }
+    }
+
+    private async Task HandleFailureAsync(string? message)
+    {
+        var resolvedMessage = string.IsNullOrWhiteSpace(message) ? "No fue posible completar la operacion." : message;
+
+        if (IsUnauthorizedMessage(resolvedMessage))
+        {
+            await AuthService.LogoutAsync();
+            Snackbar.Add("Tu sesion termino. Inicia sesion nuevamente.", Severity.Warning);
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        _errorMessage = resolvedMessage;
+        Snackbar.Add(resolvedMessage, Severity.Error);
+    }
+
+    private static bool IsActive(string? status) => string.Equals(status, "A", StringComparison.OrdinalIgnoreCase);
+
+    private static string ResolveStatus(string? status) => IsActive(status) ? "Activo" : "Inactivo";
+
+    private static Color GetStatusColor(string? status) => IsActive(status) ? Color.Success : Color.Default;
+
+    private static string ResolveText(string? value, string fallback) => string.IsNullOrWhiteSpace(value) ? fallback : value;
+
+    private string ResolveThirdPartyType(ThirdPartyDto thirdParty)
+    {
+        var catalogType = _thirdPartyTypes.FirstOrDefault(type => type.Id == thirdParty.ThirdPartyTypeId);
+        if (catalogType is not null)
+        {
+            return GetParameterLabel(catalogType);
+        }
+
+        return ResolveText(thirdParty.ThirdPartyTypeName, $"Tipo #{thirdParty.ThirdPartyTypeId}");
+    }
+
+    private static string GetParameterLabel(ParameterOptionDto parameter) => string.IsNullOrWhiteSpace(parameter.Code)
+        ? parameter.Description
+        : $"{parameter.Description}";
+
+    private static string GetStatusCardClass(string? status) => IsActive(status) ? string.Empty : "inactive";
+
+    private static string GetStatusDescription(string? status) => IsActive(status)
+        ? "Este tercero esta activo y disponible para operaciones del negocio."
+        : "Este tercero fue inactivado mediante borrado logico y no deberia usarse en nuevas operaciones.";
+
+    private static string GetInitials(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "TE";
+        }
+
+        var parts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length == 0)
+        {
+            return "TE";
+        }
+
+        var initials = parts.Take(2).Select(part => char.ToUpperInvariant(part[0]));
+        return string.Concat(initials);
+    }
+
+    private static bool IsUnauthorizedMessage(string? message) =>
+        !string.IsNullOrWhiteSpace(message)
+        && (message.StartsWith("Sesion expirada", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("Sesión expirada", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("No hay una sesion activa", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("No hay una sesión activa", StringComparison.OrdinalIgnoreCase));
+}

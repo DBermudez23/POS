@@ -1,0 +1,297 @@
+@inject IUserService UserService
+@inject IAuthService AuthService
+@inject PermissionStateService PermissionState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<section class="vp-rbac-panel-stack">
+    <section class="vp-card vp-rbac-toolbar">
+        <div class="vp-rbac-toolbar__group vp-rbac-toolbar__group--wide">
+            <MudTextField T="string"
+                          Label="Nombre"
+                          @bind-Value="_filter.Name"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Disabled="_loading" />
+
+            <MudTextField T="string"
+                          Label="Correo"
+                          @bind-Value="_filter.Email"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Disabled="_loading" />
+
+            <MudSelect T="string"
+                       Label="Estado"
+                       @bind-Value="_filter.Status"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Clearable="true"
+                       Disabled="_loading">
+                <MudSelectItem T="string" Value="@("A")">Activo</MudSelectItem>
+                <MudSelectItem T="string" Value="@("I")">Inactivo</MudSelectItem>
+            </MudSelect>
+        </div>
+
+        <div class="vp-rbac-toolbar__actions">
+            <MudButton Variant="Variant.Outlined" Disabled="_loading" OnClick="ClearFiltersAsync">
+                Limpiar
+            </MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_loading" OnClick="LoadUsersAsync">
+                Buscar
+            </MudButton>
+            <PermissionView Permission="usuarios.crear">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           StartIcon="@Icons.Material.Outlined.PersonAdd"
+                           OnClick="OpenCreateDialogAsync">
+                    Nuevo usuario
+                </MudButton>
+            </PermissionView>
+        </div>
+    </section>
+
+    @if (_accessDenied)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+            No tienes permisos para consultar usuarios.
+        </MudAlert>
+    }
+    else if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+            @_errorMessage
+        </MudAlert>
+    }
+    else if (_loading)
+    {
+        <div class="vp-card vp-rbac-loading">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            <MudText Typo="Typo.body2" Class="vp-muted">Consultando usuarios...</MudText>
+        </div>
+    }
+    else if (_users.Count == 0)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.PersonSearch"
+                    Title="No se encontraron usuarios"
+                    Message="Ajusta los filtros o crea un usuario nuevo si tienes permiso." />
+    }
+    else
+    {
+        <section class="vp-card vp-rbac-table-card">
+            <MudTable T="UserDto"
+                      Items="@_users"
+                      Dense="true"
+                      Hover="true"
+                      Breakpoint="Breakpoint.Sm"
+                      Elevation="0">
+                <HeaderContent>
+                    <MudTh>Documento</MudTh>
+                    <MudTh>Usuario</MudTh>
+                    <MudTh>Correo</MudTh>
+                    <MudTh>Negocio</MudTh>
+                    <MudTh>Estado</MudTh>
+                    <MudTh Class="vp-rbac-actions-heading">Acciones</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Documento">@($"{context.DocumentType} · {context.DocumentNumber}")</MudTd>
+                    <MudTd DataLabel="Usuario">
+                        <div class="vp-rbac-user-cell">
+                            <strong>@context.Name</strong>
+                            <span>@(string.IsNullOrWhiteSpace(context.Phone) ? "Sin telefono" : context.Phone)</span>
+                        </div>
+                    </MudTd>
+                    <MudTd DataLabel="Correo">@context.Email</MudTd>
+                    <MudTd DataLabel="Negocio">@(context.BusinessName ?? "Global")</MudTd>
+                    <MudTd DataLabel="Estado">
+                        <MudChip T="string"
+                                 Size="Size.Small"
+                                 Variant="Variant.Outlined"
+                                 Color="@(context.Status == "A" ? Color.Success : Color.Default)">
+                            @(context.Status == "A" ? "Activo" : "Inactivo")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Acciones">
+                        <div class="vp-rbac-row-actions">
+                            <PermissionView Permission="usuarios.actualizar">
+                                <MudTooltip Text="Roles del usuario">
+                                    <MudIconButton Icon="@Icons.Material.Outlined.AdminPanelSettings"
+                                                   Size="Size.Small"
+                                                   Color="Color.Info"
+                                                   OnClick="@(() => OpenRolesDialogAsync(context))" />
+                                </MudTooltip>
+                            </PermissionView>
+                            <PermissionView Permission="usuarios.actualizar">
+                                <MudTooltip Text="Editar usuario">
+                                    <MudIconButton Icon="@Icons.Material.Outlined.Edit"
+                                                   Size="Size.Small"
+                                                   Color="Color.Primary"
+                                                   OnClick="@(() => OpenEditDialogAsync(context))" />
+                                </MudTooltip>
+                            </PermissionView>
+                            <PermissionView Permission="usuarios.eliminar">
+                                <MudTooltip Text="Inactivar usuario">
+                                    <MudIconButton Icon="@Icons.Material.Outlined.Block"
+                                                   Size="Size.Small"
+                                                   Color="Color.Error"
+                                                   Disabled="@(context.Status != "A")"
+                                                   OnClick="@(() => DeleteUserAsync(context))" />
+                                </MudTooltip>
+                            </PermissionView>
+                        </div>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </section>
+    }
+</section>
+
+@code {
+    private static readonly DialogOptions DialogOptions = new()
+    {
+        CloseButton = true,
+        FullWidth = true,
+        MaxWidth = MaxWidth.Medium
+    };
+
+    private readonly UserListFilterDto _filter = new() { Status = "A" };
+    private IReadOnlyList<UserDto> _users = Array.Empty<UserDto>();
+    private bool _loading;
+    private bool _accessDenied;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await PermissionState.LoadAsync();
+        _accessDenied = !PermissionState.HasPermission("usuarios.listar");
+        if (!_accessDenied)
+        {
+            await LoadUsersAsync();
+        }
+    }
+
+    private async Task LoadUsersAsync()
+    {
+        if (!PermissionState.HasPermission("usuarios.listar"))
+        {
+            _accessDenied = true;
+            return;
+        }
+
+        _loading = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var response = await UserService.ListAsync(_filter);
+            if (!response.IsSuccess)
+            {
+                _users = Array.Empty<UserDto>();
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            _users = response.Data ?? Array.Empty<UserDto>();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        _filter.Name = null;
+        _filter.Email = null;
+        _filter.Status = "A";
+        await LoadUsersAsync();
+    }
+
+    private async Task OpenCreateDialogAsync()
+    {
+        var dialog = await DialogService.ShowAsync<UserFormDialog>("Nuevo usuario", DialogOptions);
+        await HandleDialogResultAsync(await dialog.Result);
+    }
+
+    private async Task OpenEditDialogAsync(UserDto user)
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(UserFormDialog.User)] = user
+        };
+
+        var dialog = await DialogService.ShowAsync<UserFormDialog>("Editar usuario", parameters, DialogOptions);
+        await HandleDialogResultAsync(await dialog.Result);
+    }
+
+    private async Task OpenRolesDialogAsync(UserDto user)
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(UserRolesDialog.User)] = user
+        };
+
+        await DialogService.ShowAsync<UserRolesDialog>($"Roles de {user.Name}", parameters, DialogOptions);
+    }
+
+    private async Task DeleteUserAsync(UserDto user)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Inactivar usuario",
+            $"Deseas inactivar a {user.Name}?",
+            yesText: "Inactivar",
+            noText: null,
+            cancelText: "Cancelar");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        var response = await UserService.DeleteAsync(user.Id);
+        if (!response.IsSuccess)
+        {
+            await HandleFailureAsync(response.Message);
+            return;
+        }
+
+        Snackbar.Add(response.Message, Severity.Success);
+        await LoadUsersAsync();
+    }
+
+    private async Task HandleDialogResultAsync(DialogResult? result)
+    {
+        if (result is null || result.Canceled)
+        {
+            return;
+        }
+
+        Snackbar.Add(result.Data as string ?? "Operacion completada correctamente.", Severity.Success);
+        await LoadUsersAsync();
+    }
+
+    private async Task HandleFailureAsync(string? message)
+    {
+        var resolvedMessage = string.IsNullOrWhiteSpace(message)
+            ? "No fue posible completar la operacion."
+            : message;
+
+        if (IsUnauthorizedMessage(resolvedMessage))
+        {
+            await AuthService.LogoutAsync();
+            Snackbar.Add("Tu sesion termino. Inicia sesion nuevamente.", Severity.Warning);
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        _errorMessage = resolvedMessage;
+        Snackbar.Add(resolvedMessage, Severity.Error);
+    }
+
+    private static bool IsUnauthorizedMessage(string? message) =>
+        !string.IsNullOrWhiteSpace(message)
+        && (message.StartsWith("Sesion expirada", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("No hay una sesion activa", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("Sesi", StringComparison.OrdinalIgnoreCase));
+}

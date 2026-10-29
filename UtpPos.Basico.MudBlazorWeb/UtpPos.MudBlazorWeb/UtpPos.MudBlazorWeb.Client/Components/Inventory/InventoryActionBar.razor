@@ -1,0 +1,77 @@
+@if (CanRegisterPurchase || CanRegisterSale || CanAdjustInventory || CanExportInventory)
+{
+    <section class="vp-quick-grid" aria-label="Acciones rapidas de inventario">
+        @if (CanRegisterPurchase)
+        {
+            <button type="button" class="vp-card vp-quick-action vp-inventory-action" style="--quick-color:#14784F; --quick-soft:#E5F7EF;" @onclick="RegisterPurchaseAsync">
+                <span class="vp-quick-icon"><MudIcon Icon="@Icons.Material.Outlined.ShoppingCart" /></span>
+                <span class="vp-quick-copy">
+                    <strong>Registrar compra</strong>
+                    <span>Entrada por compra</span>
+                </span>
+                <MudIcon Class="vp-quick-arrow" Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" />
+            </button>
+        }
+
+        @if (CanRegisterSale)
+        {
+            <button type="button" class="vp-card vp-quick-action vp-inventory-action" style="--quick-color:#B33C52; --quick-soft:#FFEDF1;" @onclick="RegisterSaleAsync">
+                <span class="vp-quick-icon"><MudIcon Icon="@Icons.Material.Outlined.PointOfSale" /></span>
+                <span class="vp-quick-copy">
+                    <strong>Registrar venta</strong>
+                    <span>Salida por venta POS</span>
+                </span>
+                <MudIcon Class="vp-quick-arrow" Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" />
+            </button>
+        }
+
+        @if (CanAdjustInventory)
+        {
+            <button type="button" class="vp-card vp-quick-action vp-inventory-action" style="--quick-color:#A76A13; --quick-soft:#FFF4DF;" @onclick="AdjustInventoryAsync">
+                <span class="vp-quick-icon"><MudIcon Icon="@Icons.Material.Outlined.Tune" /></span>
+                <span class="vp-quick-copy">
+                    <strong>Ajuste de inventario</strong>
+                    <span>Correccion controlada</span>
+                </span>
+                <MudIcon Class="vp-quick-arrow" Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" />
+            </button>
+        }
+
+        @if (CanExportInventory)
+        {
+            <button type="button" class="vp-card vp-quick-action vp-inventory-action" style="--quick-color:#315CAA; --quick-soft:#EAF0FB;" @onclick="ExportInventoryAsync">
+                <span class="vp-quick-icon"><MudIcon Icon="@Icons.Material.Outlined.FileDownload" /></span>
+                <span class="vp-quick-copy">
+                    <strong>Exportar inventario</strong>
+                    <span>Descarga operativa</span>
+                </span>
+                <MudIcon Class="vp-quick-arrow" Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" />
+            </button>
+        }
+    </section>
+}
+else
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+        No tienes acciones rapidas disponibles para inventario.
+    </MudAlert>
+}
+
+@code {
+    [Parameter] public bool CanRegisterPurchase { get; set; }
+    [Parameter] public bool CanRegisterSale { get; set; }
+    [Parameter] public bool CanAdjustInventory { get; set; }
+    [Parameter] public bool CanExportInventory { get; set; }
+    [Parameter] public EventCallback OnRegisterPurchase { get; set; }
+    [Parameter] public EventCallback OnRegisterSale { get; set; }
+    [Parameter] public EventCallback OnAdjustInventory { get; set; }
+    [Parameter] public EventCallback OnExportInventory { get; set; }
+
+    private Task RegisterPurchaseAsync() => OnRegisterPurchase.InvokeAsync();
+
+    private Task RegisterSaleAsync() => OnRegisterSale.InvokeAsync();
+
+    private Task AdjustInventoryAsync() => OnAdjustInventory.InvokeAsync();
+
+    private Task ExportInventoryAsync() => OnExportInventory.InvokeAsync();
+}

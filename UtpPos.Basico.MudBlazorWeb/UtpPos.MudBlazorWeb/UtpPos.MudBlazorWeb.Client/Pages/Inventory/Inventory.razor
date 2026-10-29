@@ -1,0 +1,13 @@
+@page "/inventario"
+@attribute [Authorize]
+
+<PageTitle>Inventario y Kardex | VentasPro</PageTitle>
+
+<main class="vp-page vp-inventory-page">
+    <PageHeader Kicker="Inventario"
+                Title="Inventario y Kardex"
+                Subtitle="Consulta stock actual, costos y trazabilidad historica de movimientos.">
+    </PageHeader>
+
+    <InventoryTabs />
+</main>

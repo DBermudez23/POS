@@ -1,0 +1,38 @@
+<article class="vp-card vp-panel-card">
+    <header class="vp-panel-head">
+        <div>
+            <h3>Alertas de inventario</h3>
+            <p>Productos que requieren atención</p>
+        </div>
+        <a class="vp-panel-link" href="/inventario">Ir al kardex</a>
+    </header>
+
+    @if (Items.Count == 0)
+    {
+        <div class="vp-inline-empty">No hay productos en alerta de inventario.</div>
+    }
+    else
+    {
+        <div class="vp-alert-list">
+            @foreach (var alert in Items)
+            {
+                <div class="vp-alert-row">
+                    <span class="vp-alert-icon"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" Size="Size.Small" /></span>
+                    <span class="vp-alert-copy">
+                        <strong>@alert.ProductName</strong>
+                        <span>@alert.Sku · Mínimo @FormatQuantity(alert.MinimumStock) u.</span>
+                    </span>
+                    <span class="vp-alert-stock">@FormatQuantity(alert.CurrentStock) u.</span>
+                </div>
+            }
+        </div>
+    }
+</article>
+
+@code {
+    private static readonly CultureInfo ColombianCulture = CultureInfo.GetCultureInfo("es-CO");
+
+    [Parameter] public IReadOnlyList<DashboardInventoryAlertItemDto> Items { get; set; } = Array.Empty<DashboardInventoryAlertItemDto>();
+
+    private static string FormatQuantity(decimal value) => value.ToString("N0", ColombianCulture);
+}

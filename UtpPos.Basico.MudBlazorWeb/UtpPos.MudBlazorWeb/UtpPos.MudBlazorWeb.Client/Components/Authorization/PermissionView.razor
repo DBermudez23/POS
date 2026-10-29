@@ -1,0 +1,52 @@
+@implements IDisposable
+@inject PermissionStateService PermissionState
+
+@if (IsAuthorized)
+{
+    @ChildContent
+}
+else if (NotAuthorized is not null)
+{
+    @NotAuthorized
+}
+
+@code {
+    [Parameter] public string? Permission { get; set; }
+    [Parameter] public string? Module { get; set; }
+    [Parameter] public string? Action { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? NotAuthorized { get; set; }
+
+    private bool IsAuthorized
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(Permission))
+            {
+                return PermissionState.HasPermission(Permission);
+            }
+
+            if (!string.IsNullOrWhiteSpace(Module) && !string.IsNullOrWhiteSpace(Action))
+            {
+                return PermissionState.HasPermission(Module, Action);
+            }
+
+            return true;
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        PermissionState.OnChange += HandlePermissionChange;
+    }
+
+    public void Dispose()
+    {
+        PermissionState.OnChange -= HandlePermissionChange;
+    }
+
+    private void HandlePermissionChange()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+}

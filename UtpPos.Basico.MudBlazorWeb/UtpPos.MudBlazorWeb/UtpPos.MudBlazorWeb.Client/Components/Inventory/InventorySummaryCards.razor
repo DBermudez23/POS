@@ -1,0 +1,38 @@
+<section class="vp-metric-grid" aria-label="Resumen de inventario">
+    <MetricCard Label="Productos en inventario"
+                Value="@Items.Count.ToString("N0")"
+                Icon="@Icons.Material.Outlined.Inventory2"
+                AccentColor="#315CAA"
+                SoftColor="#EAF0FB"
+                Helper="filas cargadas" />
+
+    <MetricCard Label="Productos bajo minimo"
+                Value="@LowStockCount.ToString("N0")"
+                Icon="@Icons.Material.Outlined.WarningAmber"
+                AccentColor="#B33C52"
+                SoftColor="#FFEDF1"
+                Helper="stock actual menor o igual al minimo" />
+
+    <MetricCard Label="Valor inventario"
+                Value="@InventoryValue.ToString("C0", CultureInfo.GetCultureInfo("es-CO"))"
+                Icon="@Icons.Material.Outlined.AccountBalanceWallet"
+                AccentColor="#14784F"
+                SoftColor="#E5F7EF"
+                Helper="stock por costo ponderado" />
+
+    <MetricCard Label="Movimientos recientes"
+                Value="@RecentMovements.ToString("N0")"
+                Icon="@Icons.Material.Outlined.SwapVert"
+                AccentColor="#A76A13"
+                SoftColor="#FFF4DF"
+                Helper="consulta el detalle en Kardex" />
+</section>
+
+@code {
+    [Parameter] public IReadOnlyList<InventoryDto> Items { get; set; } = Array.Empty<InventoryDto>();
+    [Parameter] public int RecentMovements { get; set; }
+
+    private int LowStockCount => Items.Count(item => item.CurrentStock <= item.MinimumStock);
+
+    private decimal InventoryValue => Items.Sum(item => item.CurrentStock * item.WeightedAverageCost);
+}

@@ -1,0 +1,169 @@
+@inject IBusinessService BusinessService
+@inject IProductService ProductService
+
+<section class="vp-card vp-inventory-filter" aria-label="Filtros de Kardex">
+    <div class="vp-kardex-filter-grid">
+        <MudTextField T="string"
+                      Label="Buscar movimiento"
+                      Placeholder="Producto, negocio, usuario u observacion..."
+                      Value="@SearchText"
+                      ValueChanged="SetSearchTextAsync"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Outlined.Search"
+                      Disabled="IsBusy" />
+
+        <MudSelect T="int?"
+                   Label="Negocio"
+                   Value="@Filter.BusinessId"
+                   ValueChanged="SetBusinessAsync"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Clearable="true"
+                   Disabled="IsBusy">
+            @foreach (var business in _businesses)
+            {
+                <MudSelectItem T="int?" Value="@((int?)business.Id)">@business.Name</MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudSelect T="int?"
+                   Label="Producto"
+                   Value="@Filter.ProductId"
+                   ValueChanged="SetProductAsync"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Clearable="true"
+                   Disabled="IsBusy">
+            @foreach (var product in ProductsForSelectedBusiness)
+            {
+                <MudSelectItem T="int?" Value="@((int?)product.Id)">@GetProductLabel(product)</MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudSelect T="string"
+                   Label="Operacion"
+                   Value="@OperationType"
+                   ValueChanged="SetOperationTypeAsync"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Disabled="IsBusy">
+            <MudSelectItem T="string" Value="@("Todos")">Todos</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Entrada")">Entrada</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Salida")">Salida</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Ajuste")">Ajuste</MudSelectItem>
+        </MudSelect>
+
+        <MudSelect T="string"
+                   Label="Estado"
+                   @bind-Value="Filter.Status"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Clearable="true"
+                   Disabled="IsBusy">
+            <MudSelectItem T="string" Value="@("A")">Activo</MudSelectItem>
+            <MudSelectItem T="string" Value="@("I")">Inactivo</MudSelectItem>
+        </MudSelect>
+
+        <MudDatePicker Label="Fecha inicial"
+                       @bind-Date="Filter.StartDate"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Disabled="IsBusy" />
+
+        <MudDatePicker Label="Fecha final"
+                       @bind-Date="Filter.EndDate"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Disabled="IsBusy" />
+
+        <div class="vp-inventory-filter-actions">
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Default"
+                       Disabled="IsBusy"
+                       OnClick="ClearAsync"
+                       StartIcon="@Icons.Material.Outlined.FilterAltOff">
+                Limpiar
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       Disabled="IsBusy"
+                       OnClick="SearchAsync"
+                       StartIcon="@Icons.Material.Outlined.Search">
+                Buscar
+            </MudButton>
+        </div>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public KardexListFilterDto Filter { get; set; } = new();
+    [Parameter] public string? SearchText { get; set; }
+    [Parameter] public EventCallback<string> SearchTextChanged { get; set; }
+    [Parameter] public string OperationType { get; set; } = "Todos";
+    [Parameter] public EventCallback<string> OperationTypeChanged { get; set; }
+    [Parameter] public bool Loading { get; set; }
+    [Parameter] public EventCallback OnSearch { get; set; }
+    [Parameter] public EventCallback OnClear { get; set; }
+
+    private IReadOnlyList<BusinessDto> _businesses = Array.Empty<BusinessDto>();
+    private IReadOnlyList<ProductDto> _products = Array.Empty<ProductDto>();
+    private bool _loadingOptions;
+
+    private bool IsBusy => Loading || _loadingOptions;
+
+    private IEnumerable<ProductDto> ProductsForSelectedBusiness => Filter.BusinessId.HasValue
+        ? _products.Where(product => product.BusinessId == Filter.BusinessId.Value || !product.BusinessId.HasValue)
+        : _products;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loadingOptions = true;
+
+        try
+        {
+            var businessResponse = await BusinessService.ListAsync(new BusinessListFilterDto { Status = "A" });
+            var productResponse = await ProductService.ListAsync(new ProductListFilterDto { Status = "A" });
+
+            _businesses = businessResponse.Data ?? Array.Empty<BusinessDto>();
+            _products = productResponse.Data ?? Array.Empty<ProductDto>();
+        }
+        finally
+        {
+            _loadingOptions = false;
+        }
+    }
+
+    private Task SetBusinessAsync(int? businessId)
+    {
+        Filter.BusinessId = businessId;
+
+        if (Filter.ProductId.HasValue && !ProductsForSelectedBusiness.Any(product => product.Id == Filter.ProductId.Value))
+        {
+            Filter.ProductId = null;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Task SetProductAsync(int? productId)
+    {
+        Filter.ProductId = productId;
+        return Task.CompletedTask;
+    }
+
+    private Task SetSearchTextAsync(string value) => SearchTextChanged.InvokeAsync(value);
+
+    private Task SetOperationTypeAsync(string value) => OperationTypeChanged.InvokeAsync(value);
+
+    private Task SearchAsync() => OnSearch.InvokeAsync();
+
+    private Task ClearAsync() => OnClear.InvokeAsync();
+
+    private static string GetProductLabel(ProductDto product) =>
+        string.IsNullOrWhiteSpace(product.ExternalId)
+            ? product.Name
+            : $"{product.Name} ({product.ExternalId})";
+}

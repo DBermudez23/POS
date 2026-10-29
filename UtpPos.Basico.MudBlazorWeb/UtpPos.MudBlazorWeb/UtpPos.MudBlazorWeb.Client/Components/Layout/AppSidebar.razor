@@ -1,0 +1,94 @@
+@implements IDisposable
+@inject PermissionStateService PermissionState
+@inject IAuthService AuthService
+
+<aside class="vp-sidebar">
+    <div class="vp-sidebar-brand">
+        <AppLogo />
+    </div>
+
+    <nav class="vp-sidebar-nav" aria-label="Navegación principal">
+        <MudNavMenu>
+            <SidebarSection Title="OPERACIÓN">
+                <SidebarNavItem Title="Dashboard" Href="/" Match="NavLinkMatch.All"
+                                Icon="@Icons.Material.Outlined.Dashboard" />
+                <SidebarNavItem Title="Ventas" Href="/ventas" Icon="@Icons.Material.Outlined.PointOfSale"
+                                PermissionName="ventas.listar" />
+                <SidebarNavItem Title="Compras" Href="/compras" Icon="@Icons.Material.Outlined.ShoppingCart"
+                                PermissionName="compras.listar" />
+                <SidebarNavItem Title="Productos" Href="/productos" Icon="@Icons.Material.Outlined.Inventory2"
+                                PermissionName="productos.listar" />
+                @if (PermissionState.HasPermission("kardex.listar")
+                    || PermissionState.HasPermission("inventario.listar"))
+                {
+                    <SidebarNavItem Title="Inventario" Href="/inventario" Icon="@Icons.Material.Outlined.Warehouse" />
+                }
+            </SidebarSection>
+
+            @if (PermissionState.HasPermission("administrativo.total"))
+            {
+                <SidebarSection Title="ADMINISTRACIÓN">
+                        @if (CanShowBusinessModule)
+                        {
+                            <SidebarNavItem Title="Negocios" Href="/negocios" Icon="@Icons.Material.Outlined.Business"
+                                        PermissionName="negocios.listar" />
+                        }
+                        <SidebarNavItem Title="Terceros" Href="/terceros" Icon="@Icons.Material.Outlined.Groups"
+                                        PermissionName="terceros.listar" />
+                        <SidebarNavItem Title="Reportes" Href="#reportes" Icon="@Icons.Material.Outlined.BarChart"
+                                        PermissionName="reportes.listar" />
+                        <SidebarNavItem Title="Configuración" Href="#configuracion" Icon="@Icons.Material.Outlined.Settings"
+                                        PermissionName="parametros.listar" />
+                        @if (PermissionState.HasPermission("usuarios.listar")
+                            || PermissionState.HasPermission("roles.listar")
+                            || PermissionState.HasPermission("permisos.listar"))
+                        {
+                            <MudNavLink Href="/usuarios" Icon="@Icons.Material.Outlined.ManageAccounts" Class="vp-nav-item">
+                                <span>Usuarios</span>
+                            </MudNavLink>
+                        }
+                </SidebarSection>
+            }
+        </MudNavMenu>
+    </nav>
+
+    <div class="vp-sidebar-footer">
+        <span class="vp-sidebar-status"></span>
+        <div>
+            <MudText Typo="Typo.caption"><strong>Sistema operativo</strong></MudText>
+            <MudText Typo="Typo.caption" Class="vp-muted">Todos los servicios activos</MudText>
+        </div>
+    </div>
+</aside>
+
+@code {
+    private AuthUserDto? _currentUser;
+    private bool UserHasBusinessId => _currentUser?.BusinessId is > 0;
+
+    private bool CanShowBusinessModule => !UserHasBusinessId && PermissionState.HasPermission("negocios.listar");
+    protected override async Task OnInitializedAsync()
+    {
+        PermissionState.OnChange += HandlePermissionChange;
+        await LoadCurrentUserAsync();
+    }
+
+    private async Task LoadCurrentUserAsync()
+    {
+        var response = await AuthService.GetCurrentUserAsync();
+
+        if (response.IsSuccess && response.Data is not null)
+        {
+            _currentUser = response.Data;
+        }
+    }
+
+    public void Dispose()
+    {
+        PermissionState.OnChange -= HandlePermissionChange;
+    }
+
+    private void HandlePermissionChange()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+}

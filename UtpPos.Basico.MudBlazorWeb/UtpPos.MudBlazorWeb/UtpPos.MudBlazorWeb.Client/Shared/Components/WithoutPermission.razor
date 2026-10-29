@@ -1,0 +1,8 @@
+<MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+    @text
+</MudAlert>
+
+@code {
+    [Parameter]
+    public string? text { get; set; } = "No tiene permisos para realizar esta acción";
+}

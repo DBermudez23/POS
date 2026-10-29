@@ -1,0 +1,127 @@
+<section class="product-table-card">
+    <MudTable T="ProductDto"
+              Items="Products"
+              Dense="true"
+              Hover="true"
+              Breakpoint="Breakpoint.Sm"
+              Elevation="0">
+        <HeaderContent>
+            <MudTh>Producto</MudTh>
+            <MudTh>Categoria</MudTh>
+            <MudTh>Valor base de venta</MudTh>
+            <MudTh>Impuestos</MudTh>
+            <MudTh>Negocio</MudTh>
+            <MudTh>Estado</MudTh>
+            <MudTh Class="product-actions-heading">Acciones</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Producto">
+                <div class="product-table-product">
+                    <div class="product-thumb">
+                        @if (HasImage(context.Image))
+                        {
+                            <img src="@context.Image" alt="@context.Name" />
+                        }
+                        else
+                        {
+                            <MudIcon Icon="@Icons.Material.Outlined.Inventory2" />
+                        }
+                    </div>
+
+                    <div class="product-cell">
+                        <strong>@context.Name</strong>
+                        <span>@context.Description</span>
+                        <small>@(string.IsNullOrWhiteSpace(context.ExternalId) ? "Sin external ID" : context.ExternalId)</small>
+                    </div>
+                </div>
+            </MudTd>
+
+            <MudTd DataLabel="Categoria">
+                <span class="product-tag">@(context.CategoryName ?? $"Categoria #{context.CategoryId}")</span>
+            </MudTd>
+
+            <MudTd DataLabel="Valor base">
+                <div class="product-price-cell">
+                    <strong>@FormatSaleValue(context.SaleValue)</strong>
+                    <span>No incluye IVA</span>
+                    <span>Margen @($"{context.ProfitMarginPercentage:N2}%")</span>
+                </div>
+            </MudTd>
+
+            <MudTd DataLabel="Impuestos">
+                @($"{context.VatPercentage:N2}% IVA")
+            </MudTd>
+
+            <MudTd DataLabel="Negocio">
+                @(context.BusinessName ?? "Global")
+            </MudTd>
+
+            <MudTd DataLabel="Estado">
+                <MudChip T="string"
+                         Size="Size.Small"
+                         Variant="Variant.Outlined"
+                         Color="@(context.Status == "A" ? Color.Success : Color.Default)">
+                    @(context.Status == "A" ? "Activo" : "Inactivo")
+                </MudChip>
+            </MudTd>
+
+            <MudTd DataLabel="Acciones">
+                <div class="product-row-actions">
+                    @if (CanViewDetails)
+                    {
+                        <MudTooltip Text="Ver detalle">
+                            <MudIconButton Icon="@Icons.Material.Outlined.Visibility"
+                                           Size="Size.Small"
+                                           Color="Color.Info"
+                                           OnClick="@(() => ViewDetailsAsync(context))" />
+                        </MudTooltip>
+                    }
+
+                    @if (CanEdit)
+                    {
+                        <MudTooltip Text="Editar producto">
+                            <MudIconButton Icon="@Icons.Material.Outlined.Edit"
+                                           Size="Size.Small"
+                                           Color="Color.Primary"
+                                           OnClick="@(() => EditAsync(context))" />
+                        </MudTooltip>
+                    }
+
+                    @if (CanDeactivate)
+                    {
+                        <MudTooltip Text="Inactivar producto">
+                            <MudIconButton Icon="@Icons.Material.Outlined.Block"
+                                           Size="Size.Small"
+                                           Color="Color.Error"
+                                           Disabled="@(context.Status != "A")"
+                                           OnClick="@(() => DeactivateAsync(context))" />
+                        </MudTooltip>
+                    }
+                </div>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+</section>
+
+@code {
+    [Parameter] public IReadOnlyList<ProductDto> Products { get; set; } = Array.Empty<ProductDto>();
+    [Parameter] public bool CanViewDetails { get; set; }
+    [Parameter] public bool CanEdit { get; set; }
+    [Parameter] public bool CanDeactivate { get; set; }
+    [Parameter] public EventCallback<ProductDto> OnViewDetails { get; set; }
+    [Parameter] public EventCallback<ProductDto> OnEdit { get; set; }
+    [Parameter] public EventCallback<ProductDto> OnDeactivate { get; set; }
+
+    private Task ViewDetailsAsync(ProductDto product) => OnViewDetails.InvokeAsync(product);
+
+    private Task EditAsync(ProductDto product) => OnEdit.InvokeAsync(product);
+
+    private Task DeactivateAsync(ProductDto product) => OnDeactivate.InvokeAsync(product);
+
+    private static bool HasImage(string? image) => !string.IsNullOrWhiteSpace(image);
+
+    private static string FormatSaleValue(decimal? value) =>
+        value is > 0
+            ? value.GetValueOrDefault().ToString("C0", CultureInfo.GetCultureInfo("es-CO"))
+            : "Pendiente de compra";
+}

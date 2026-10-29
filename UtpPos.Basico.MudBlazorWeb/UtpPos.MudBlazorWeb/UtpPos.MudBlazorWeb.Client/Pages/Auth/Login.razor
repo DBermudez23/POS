@@ -1,0 +1,77 @@
+@page "/login"
+@layout UtpPos.MudBlazorWeb.Client.Layout.AuthLayout
+@inject IAuthService AuthService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+
+<PageTitle>Iniciar sesión | VentasPro</PageTitle>
+
+<main class="vp-login-page">
+    <div class="vp-login-shell">
+        <LoginBrandPanel />
+        <LoginFormCard Model="@_request" Loading="@_isLoading" ErrorMessage="@_errorMessage" OnSubmit="LoginAsync" />
+    </div>
+</main>
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
+    private readonly LoginRequest _request = new();
+    private bool _isLoading;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        if (authenticationState.User.Identity?.IsAuthenticated == true)
+        {
+            NavigationManager.NavigateTo(GetDestination());
+        }
+    }
+
+    private async Task LoginAsync()
+    {
+        _errorMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(_request.Email) || string.IsNullOrWhiteSpace(_request.Password))
+        {
+            _errorMessage = "El correo electrónico y la contraseña son obligatorios.";
+            return;
+        }
+
+        _isLoading = true;
+
+        try
+        {
+            var response = await AuthService.LoginAsync(_request);
+
+            if (response.IsSuccess && response.Data is not null)
+            {
+                NavigationManager.NavigateTo(GetDestination());
+                return;
+            }
+
+            _errorMessage = string.IsNullOrWhiteSpace(response.Message)
+                ? "No fue posible iniciar sesión."
+                : response.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private string GetDestination()
+    {
+        if (string.IsNullOrWhiteSpace(ReturnUrl)
+            || ReturnUrl.StartsWith("//", StringComparison.Ordinal)
+            || Uri.TryCreate(ReturnUrl, UriKind.Absolute, out _))
+        {
+            return "/";
+        }
+
+        return $"/{ReturnUrl.TrimStart('/')}";
+    }
+}

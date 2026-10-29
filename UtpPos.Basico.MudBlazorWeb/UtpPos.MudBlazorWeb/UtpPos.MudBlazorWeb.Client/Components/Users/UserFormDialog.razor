@@ -1,0 +1,313 @@
+@inject IUserService UserService
+@inject IBusinessService BusinessService
+@inject IParameterService ParameterService
+@inject IAuthService AuthService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<MudDialog>
+    <DialogContent>
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="mb-4">
+                @_errorMessage
+            </MudAlert>
+        }
+
+        <MudForm @ref="_form">
+            <div class="vp-rbac-form-grid">
+                <MudSelect T="int?"
+                           Label="Negocio"
+                           @bind-Value="_model.BusinessId"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Clearable="true"
+                           Disabled="_saving || _catalogLoading">
+                    <MudSelectItem T="int?" Value="@((int?)null)">Global</MudSelectItem>
+                    @foreach (var business in _businesses)
+                    {
+                        <MudSelectItem T="int?" Value="@business.Id">@business.Name</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudSelect T="int?"
+                           Label="Tipo de documento"
+                           @bind-Value="_model.DocumentTypeId"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Required="true"
+                           RequiredError="El tipo de documento es obligatorio."
+                           Disabled="_saving || _catalogLoading">
+                    @foreach (var documentType in _documentTypes)
+                    {
+                        <MudSelectItem T="int?" Value="@documentType.Id">@documentType.Description</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudTextField T="string"
+                              Label="Numero de documento"
+                              @bind-Value="_model.DocumentNumber"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Required="true"
+                              RequiredError="El numero de documento es obligatorio."
+                              MaxLength="20"
+                              Disabled="_saving" />
+
+                <MudTextField T="string"
+                              Label="Nombre"
+                              @bind-Value="_model.Name"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Required="true"
+                              RequiredError="El nombre es obligatorio."
+                              MaxLength="100"
+                              Disabled="_saving" />
+
+                <MudTextField T="string"
+                              Label="Correo"
+                              @bind-Value="_model.Email"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Required="true"
+                              RequiredError="El correo es obligatorio."
+                              MaxLength="80"
+                              InputType="InputType.Email"
+                              Disabled="_saving" />
+
+                <MudTextField T="string"
+                              Label="Telefono"
+                              @bind-Value="_model.Phone"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              MaxLength="20"
+                              Disabled="_saving" />
+
+                <MudTextField T="string"
+                              Label="@(_isEditing ? "Nueva contrasena" : "Contrasena")"
+                              @bind-Value="_model.Password"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              InputType="InputType.Password"
+                              Required="@(!_isEditing)"
+                              RequiredError="La contrasena es obligatoria."
+                              Disabled="_saving" />
+
+                <MudSelect T="string"
+                           Label="Estado"
+                           @bind-Value="_model.Status"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Disabled="_saving">
+                    <MudSelectItem T="string" Value="@("A")">Activo</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("I")">Inactivo</MudSelectItem>
+                </MudSelect>
+            </div>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving" OnClick="SaveAsync">
+            @if (_saving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Guardando...</span>
+            }
+            else
+            {
+                <span>@(_isEditing ? "Guardar cambios" : "Crear usuario")</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance Dialog { get; set; } = null!;
+    [Parameter] public UserDto? User { get; set; }
+
+    private readonly UserFormModel _model = new();
+    private MudForm? _form;
+    private IReadOnlyList<BusinessDto> _businesses = Array.Empty<BusinessDto>();
+    private IReadOnlyList<ParameterDto> _documentTypes = Array.Empty<ParameterDto>();
+    private bool _saving;
+    private bool _catalogLoading;
+    private bool _isEditing;
+    private int? _originalBusinessId;
+    private string? _originalPhone;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isEditing = User is not null;
+        if (User is not null)
+        {
+            _model.BusinessId = User.BusinessId;
+            _model.DocumentTypeId = User.DocumentTypeId;
+            _model.DocumentNumber = User.DocumentNumber;
+            _model.Name = User.Name;
+            _model.Email = User.Email;
+            _model.Phone = User.Phone;
+            _model.Status = User.Status;
+            _originalBusinessId = User.BusinessId;
+            _originalPhone = User.Phone;
+        }
+
+        await LoadCatalogsAsync();
+    }
+
+    private async Task LoadCatalogsAsync()
+    {
+        _catalogLoading = true;
+
+        try
+        {
+            var businessesTask = BusinessService.ListAsync(new BusinessListFilterDto { Status = "A" });
+            var documentTypesTask = ParameterService.ListAsync(new ParameterListFilterDto
+            {
+                ClassDescription = "TIPOS DE DOCUMENTO",
+                Status = "A"
+            });
+
+            await Task.WhenAll(businessesTask, documentTypesTask);
+
+            var businessResponse = await businessesTask;
+            var documentTypeResponse = await documentTypesTask;
+
+            if (!businessResponse.IsSuccess)
+            {
+                _errorMessage = businessResponse.Message;
+                return;
+            }
+
+            if (!documentTypeResponse.IsSuccess)
+            {
+                _errorMessage = documentTypeResponse.Message;
+                return;
+            }
+
+            _businesses = businessResponse.Data ?? Array.Empty<BusinessDto>();
+            _documentTypes = documentTypeResponse.Data ?? Array.Empty<ParameterDto>();
+        }
+        finally
+        {
+            _catalogLoading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_form is null)
+        {
+            return;
+        }
+
+        await _form.Validate();
+        if (!_form.IsValid)
+        {
+            return;
+        }
+
+        if (!_isEditing && string.IsNullOrWhiteSpace(_model.Password))
+        {
+            _errorMessage = "La contrasena es obligatoria.";
+            return;
+        }
+
+        _saving = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            if (_isEditing && User is not null)
+            {
+                var response = await UserService.UpdateAsync(User.Id, new UserUpdateRequestDto
+                {
+                    BusinessId = _model.BusinessId,
+                    DocumentTypeId = _model.DocumentTypeId,
+                    DocumentNumber = _model.DocumentNumber.Trim(),
+                    Name = _model.Name.Trim(),
+                    Email = _model.Email.Trim(),
+                    Password = string.IsNullOrWhiteSpace(_model.Password) ? null : _model.Password,
+                    Phone = string.IsNullOrWhiteSpace(_model.Phone) ? null : _model.Phone.Trim(),
+                    Status = _model.Status,
+                    ClearBusinessId = _originalBusinessId.HasValue && !_model.BusinessId.HasValue,
+                    ClearPhone = !string.IsNullOrWhiteSpace(_originalPhone) && string.IsNullOrWhiteSpace(_model.Phone)
+                });
+
+                if (!response.IsSuccess)
+                {
+                    if (await HandleUnauthorizedAsync(response.Message))
+                    {
+                        return;
+                    }
+
+                    _errorMessage = response.Message;
+                    return;
+                }
+
+                Dialog.Close(DialogResult.Ok("Usuario actualizado correctamente."));
+                return;
+            }
+
+            var createResponse = await UserService.CreateAsync(new UserCreateRequestDto
+            {
+                BusinessId = _model.BusinessId,
+                DocumentTypeId = _model.DocumentTypeId ?? 0,
+                DocumentNumber = _model.DocumentNumber.Trim(),
+                Name = _model.Name.Trim(),
+                Email = _model.Email.Trim(),
+                Password = _model.Password,
+                Phone = string.IsNullOrWhiteSpace(_model.Phone) ? null : _model.Phone.Trim(),
+                Status = _model.Status
+            });
+
+            if (!createResponse.IsSuccess)
+            {
+                if (await HandleUnauthorizedAsync(createResponse.Message))
+                {
+                    return;
+                }
+
+                _errorMessage = createResponse.Message;
+                return;
+            }
+
+            Dialog.Close(DialogResult.Ok("Usuario creado correctamente."));
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task<bool> HandleUnauthorizedAsync(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message)
+            || (!message.StartsWith("Sesion expirada", StringComparison.OrdinalIgnoreCase)
+                && !message.StartsWith("No hay una sesion activa", StringComparison.OrdinalIgnoreCase)
+                && !message.StartsWith("Sesi", StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        await AuthService.LogoutAsync();
+        Dialog.Cancel();
+        Snackbar.Add("Tu sesion termino. Inicia sesion nuevamente.", Severity.Warning);
+        NavigationManager.NavigateTo("/login", replace: true);
+        return true;
+    }
+
+    private sealed class UserFormModel
+    {
+        public int? BusinessId { get; set; }
+        public int? DocumentTypeId { get; set; }
+        public string DocumentNumber { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string? Phone { get; set; }
+        public string Password { get; set; } = string.Empty;
+        public string Status { get; set; } = "A";
+    }
+}

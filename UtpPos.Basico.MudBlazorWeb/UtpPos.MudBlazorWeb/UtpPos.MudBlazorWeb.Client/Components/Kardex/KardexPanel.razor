@@ -1,0 +1,228 @@
+@inject IKardexService KardexService
+@inject IAuthService AuthService
+@inject PermissionStateService PermissionState
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<section class="vp-inventory-panel-stack">
+    <div class="vp-section-heading">
+        <div>
+            <h2>Movimientos Kardex</h2>
+            <p>Consulta entradas, salidas y ajustes con saldo acumulado.</p>
+        </div>
+    </div>
+
+    @if (_filter.ProductId.HasValue)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+            Kardex filtrado por @ResolveSelectedProductLabel().
+        </MudAlert>
+    }
+
+    <KardexFilterPanel Filter="_filter"
+                       SearchText="@_searchText"
+                       SearchTextChanged="SetSearchTextAsync"
+                       OperationType="@_operationType"
+                       OperationTypeChanged="SetOperationTypeAsync"
+                       Loading="_loading"
+                       OnSearch="LoadKardexAsync"
+                       OnClear="ClearFiltersAsync" />
+
+    @if (_accessDenied)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+            No tienes permisos para consultar Kardex.
+        </MudAlert>
+    }
+    else if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+            @_errorMessage
+        </MudAlert>
+    }
+    else if (_loading)
+    {
+        <div class="vp-card vp-inventory-loading">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            <MudText Typo="Typo.body2" Class="vp-muted">Consultando Kardex...</MudText>
+        </div>
+    }
+    else if (VisibleMovements.Count == 0)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.History"
+                    Title="No se encontraron movimientos"
+                    Message="Ajusta los filtros para consultar la trazabilidad del inventario." />
+    }
+    else
+    {
+        <KardexTable Items="VisibleMovements" />
+    }
+</section>
+
+@code {
+    [Parameter] public int? ProductId { get; set; }
+    [Parameter] public string? ProductName { get; set; }
+
+    private readonly KardexListFilterDto _filter = new() { Status = "A" };
+    private IReadOnlyList<KardexDto> _movements = Array.Empty<KardexDto>();
+    private bool _initialized;
+    private bool _loading;
+    private bool _accessDenied;
+    private int? _lastProductParameter;
+    private string? _selectedProductName;
+    private string _operationType = "Todos";
+    private string? _searchText;
+    private string _errorMessage = string.Empty;
+
+    private IReadOnlyList<KardexDto> VisibleMovements => _movements
+        .Where(MatchesSearch)
+        .Where(MatchesOperation)
+        .ToArray();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_initialized && _lastProductParameter == ProductId)
+        {
+            return;
+        }
+
+        _initialized = true;
+        _lastProductParameter = ProductId;
+        _filter.ProductId = ProductId;
+        _selectedProductName = ProductName;
+
+        await PermissionState.LoadAsync();
+        _accessDenied = !PermissionState.HasPermission("kardex.listar");
+
+        if (!_accessDenied)
+        {
+            await LoadKardexAsync();
+        }
+    }
+
+    private async Task LoadKardexAsync()
+    {
+        if (!PermissionState.HasPermission("kardex.listar"))
+        {
+            _accessDenied = true;
+            return;
+        }
+
+        _loading = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var response = await KardexService.ListAsync(_filter);
+
+            if (!response.IsSuccess)
+            {
+                _movements = Array.Empty<KardexDto>();
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            _movements = response.Data ?? Array.Empty<KardexDto>();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        _filter.BusinessId = null;
+        _filter.InventoryId = null;
+        _filter.ProductId = null;
+        _filter.MovementTypeId = null;
+        _filter.Status = "A";
+        _filter.StartDate = null;
+        _filter.EndDate = null;
+        _operationType = "Todos";
+        _searchText = null;
+        _selectedProductName = null;
+
+        await LoadKardexAsync();
+    }
+
+    private Task SetSearchTextAsync(string value)
+    {
+        _searchText = value;
+        return Task.CompletedTask;
+    }
+
+    private Task SetOperationTypeAsync(string value)
+    {
+        _operationType = value;
+        return Task.CompletedTask;
+    }
+
+    private bool MatchesSearch(KardexDto movement)
+    {
+        if (string.IsNullOrWhiteSpace(_searchText))
+        {
+            return true;
+        }
+
+        var value = _searchText.Trim();
+
+        return Contains(movement.ProductName, value)
+            || Contains(movement.BusinessName, value)
+            || Contains(movement.MovementTypeName, value)
+            || Contains(movement.CreatedByUserName, value)
+            || Contains(movement.Observation, value);
+    }
+
+    private bool MatchesOperation(KardexDto movement) =>
+        _operationType == "Todos"
+        || string.Equals(GetOperationType(movement), _operationType, StringComparison.OrdinalIgnoreCase);
+
+    private string ResolveSelectedProductLabel() =>
+        string.IsNullOrWhiteSpace(_selectedProductName)
+            ? $"producto #{_filter.ProductId}"
+            : _selectedProductName;
+
+    private async Task HandleFailureAsync(string? message)
+    {
+        var resolvedMessage = string.IsNullOrWhiteSpace(message)
+            ? "No fue posible consultar Kardex."
+            : message;
+
+        if (IsUnauthorizedMessage(resolvedMessage))
+        {
+            await AuthService.LogoutAsync();
+            Snackbar.Add("Tu sesion termino. Inicia sesion nuevamente.", Severity.Warning);
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        _errorMessage = resolvedMessage;
+        Snackbar.Add(resolvedMessage, Severity.Error);
+    }
+
+    private static bool Contains(string? source, string value) =>
+        !string.IsNullOrWhiteSpace(source)
+        && source.Contains(value, StringComparison.OrdinalIgnoreCase);
+
+    private static string GetOperationType(KardexDto movement)
+    {
+        if (movement.InputQuantity > 0 && movement.OutputQuantity <= 0)
+        {
+            return "Entrada";
+        }
+
+        if (movement.OutputQuantity > 0 && movement.InputQuantity <= 0)
+        {
+            return "Salida";
+        }
+
+        return "Ajuste";
+    }
+
+    private static bool IsUnauthorizedMessage(string? message) =>
+        !string.IsNullOrWhiteSpace(message)
+        && (message.StartsWith("Sesion expirada", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("No hay una sesion activa", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("Sesi", StringComparison.OrdinalIgnoreCase));
+}

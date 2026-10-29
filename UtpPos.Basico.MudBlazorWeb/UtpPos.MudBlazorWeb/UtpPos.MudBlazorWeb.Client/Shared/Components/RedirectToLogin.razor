@@ -1,0 +1,22 @@
+@inject NavigationManager NavigationManager
+
+@code {
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        var relativeUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        if (relativeUrl.StartsWith("login", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var returnUrl = string.IsNullOrWhiteSpace(relativeUrl) ? "/" : $"/{relativeUrl}";
+        var loginUrl = $"/login?returnUrl={Uri.EscapeDataString(returnUrl)}";
+
+        NavigationManager.NavigateTo(loginUrl, replace: true);
+    }
+}

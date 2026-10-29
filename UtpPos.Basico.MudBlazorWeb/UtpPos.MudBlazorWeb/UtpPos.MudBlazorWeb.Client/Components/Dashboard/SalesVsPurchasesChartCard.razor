@@ -1,0 +1,75 @@
+<article class="vp-card vp-panel-card">
+    <header class="vp-panel-head">
+        <div>
+            <h3>Ventas vs compras</h3>
+            <p>Balance operativo por periodo</p>
+        </div>
+        <div class="text-right">
+            <div class="vp-chart-total">@FormatCurrency(Items.Sum(item => item.Balance))</div>
+            <span class="vp-finance-caption">balance</span>
+        </div>
+    </header>
+
+    @if (Restricted)
+    {
+        <div class="vp-restricted-card">
+            <MudIcon Icon="@Icons.Material.Outlined.Lock" Size="Size.Medium" />
+            <strong>Información financiera restringida</strong>
+            <span>No se solicita financial-overview sin el permiso dashboard-finanzas.ver.</span>
+        </div>
+    }
+    else if (Items.Count == 0)
+    {
+        <div class="vp-inline-empty">No hay ventas y compras para comparar en el periodo seleccionado.</div>
+    }
+    else
+    {
+        <div class="vp-comparison-chart" role="img" aria-label="Gráfico comparativo de ventas y compras">
+            @foreach (var item in Items)
+            {
+                <div class="vp-comparison-column">
+                    <div class="vp-comparison-bars">
+                        <div class="vp-comparison-bar vp-comparison-bar--sales"
+                             style="height:@($"{GetHeight(item.SalesTotal)}%")"
+                             title="Ventas: @FormatCurrency(item.SalesTotal)"></div>
+                        <div class="vp-comparison-bar vp-comparison-bar--purchases"
+                             style="height:@($"{GetHeight(item.PurchaseTotal)}%")"
+                             title="Compras: @FormatCurrency(item.PurchaseTotal)"></div>
+                    </div>
+                    <span class="vp-bar-label">@ResolveLabel(item)</span>
+                </div>
+            }
+        </div>
+
+        <div class="vp-finance-legend">
+            <span><i style="background:#3EBBD0"></i>Ventas</span>
+            <span><i style="background:#F0AA43"></i>Compras</span>
+        </div>
+    }
+</article>
+
+@code {
+    private static readonly CultureInfo ColombianCulture = CultureInfo.GetCultureInfo("es-CO");
+
+    [Parameter] public IReadOnlyList<DashboardSalesVsPurchasesItemDto> Items { get; set; } = Array.Empty<DashboardSalesVsPurchasesItemDto>();
+    [Parameter] public bool Restricted { get; set; }
+
+    private int GetHeight(decimal value)
+    {
+        var max = Items.Count == 0 ? 0 : Items.Max(item => Math.Max(item.SalesTotal, item.PurchaseTotal));
+        if (max <= 0)
+            return 12;
+
+        return Math.Clamp((int)Math.Round(value / max * 100), 12, 100);
+    }
+
+    private static string ResolveLabel(DashboardSalesVsPurchasesItemDto item)
+    {
+        if (!string.IsNullOrWhiteSpace(item.Label))
+            return item.Label;
+
+        return item.PeriodStart.ToString("MMM", ColombianCulture);
+    }
+
+    private static string FormatCurrency(decimal value) => value.ToString("C0", ColombianCulture);
+}

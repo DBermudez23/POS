@@ -1,0 +1,409 @@
+@page "/ventas"
+@attribute [Authorize]
+@inject ISaleService SaleService
+@inject IBusinessService BusinessService
+@inject IParameterService ParameterService
+@inject IAuthService AuthService
+@inject PermissionStateService PermissionState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<PageTitle>Ventas | VentasPro</PageTitle>
+
+<main class="vp-page vp-transaction-page">
+    <PageHeader Kicker="Operación"
+                Title="Ventas"
+                Subtitle="Consulta y registra ventas a clientes.">
+        <Action>
+            @if (_canCreate)
+            {
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           StartIcon="@Icons.Material.Outlined.AddShoppingCart"
+                           OnClick="GoToCreate">
+                    Nueva venta
+                </MudButton>
+            }
+        </Action>
+    </PageHeader>
+
+    @if (_accessDenied)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+            No tienes permisos para consultar ventas.
+        </MudAlert>
+    }
+    else
+    {
+        <section class="vp-card vp-transaction-filter" aria-label="Filtros de ventas">
+            <div class="vp-transaction-filter-grid">
+                <MudSelect T="int?"
+                           Label="Negocio"
+                           @bind-Value="_filter.BusinessId"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Clearable="true"
+                           Disabled="IsBusy">
+                    @foreach (var business in _businesses)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)business.Id)">@business.Name</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudNumericField T="int?"
+                                 Label="Cliente / tercero"
+                                 @bind-Value="_filter.ThirdPartyId"
+                                 Variant="Variant.Outlined"
+                                 Margin="Margin.Dense"
+                                 Min="1"
+                                 Disabled=true /> @* TO DO *@
+
+                <MudSelect T="string"
+                           Label="Estado"
+                           @bind-Value="_filter.Status"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Clearable="true"
+                           Disabled="IsBusy">
+                    <MudSelectItem T="string" Value="@("A")">Activo</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("I")">Inactivo</MudSelectItem>
+                </MudSelect>
+
+                <MudDatePicker Label="Fecha inicial"
+                               @bind-Date="_filter.StartDate"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense"
+                               Disabled="IsBusy" />
+
+                <MudDatePicker Label="Fecha final"
+                               @bind-Date="_filter.EndDate"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense"
+                               Disabled="IsBusy" />
+
+                <div class="vp-transaction-filter-actions">
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Default"
+                               Disabled="IsBusy"
+                               StartIcon="@Icons.Material.Outlined.FilterAltOff"
+                               OnClick="ClearFiltersAsync">
+                        Limpiar
+                    </MudButton>
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Disabled="IsBusy"
+                               StartIcon="@Icons.Material.Outlined.Search"
+                               OnClick="LoadSalesAsync">
+                        Buscar
+                    </MudButton>
+                </div>
+            </div>
+        </section>
+
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mt-4">
+                @_errorMessage
+            </MudAlert>
+        }
+
+        @if (_loading)
+        {
+            <div class="vp-card vp-transaction-loading">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+                <MudText Typo="Typo.body2" Class="vp-muted">Consultando ventas...</MudText>
+            </div>
+        }
+        else if (_sales.Count == 0 && string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <div class="mt-4">
+                <EmptyState Icon="@Icons.Material.Outlined.PointOfSale"
+                            Title="No se encontraron ventas"
+                            Message="Ajusta los filtros o registra una nueva venta si tienes permiso." />
+            </div>
+        }
+        else if (_sales.Count > 0)
+        {
+            <section class="vp-card vp-table-card" aria-label="Listado de ventas">
+                <div class="vp-table-scroll">
+                    <table class="vp-inventory-table vp-transaction-table vp-sales-table">
+                        <thead>
+                            <tr>
+                                <th>Id</th>
+                                <th>Fecha</th>
+                                <th>Negocio</th>
+                                <th>Cliente</th>
+                                <th>Documento cliente</th>
+                                <th>Usuario</th>
+                                <th>Subtotal</th>
+                                <th>IVA</th>
+                                <th>Total</th>
+                                <th>Costo total</th>
+                                <th>Utilidad bruta</th>
+                                <th>Total pagado</th>
+                                <th>Estado</th>
+                                <th class="vp-inventory-actions-heading">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var sale in _sales)
+                            {
+                                <tr>
+                                    <td>#@sale.Id</td>
+                                    <td>@sale.Date.ToString("dd/MM/yyyy HH:mm")</td>
+                                    <td>@sale.BusinessName</td>
+                                    <td class="vp-product-cell">
+                                        <strong>@ResolveText(sale.ThirdPartyName, $"Tercero #{sale.ThirdPartyId}")</strong>
+                                        <span>Id @sale.ThirdPartyId</span>
+                                    </td>
+                                    <td>@ResolveText(sale.ThirdPartyDocumentNumber, "Sin documento")</td>
+                                    <td>@ResolveText(sale.UserName, $"Usuario #{sale.UserId}")</td>
+                                    <td>@FormatMoney(sale.Subtotal)</td>
+                                    <td>@FormatMoney(sale.VatValue)</td>
+                                    <td><strong>@FormatMoney(sale.Total)</strong></td>
+                                    <td>@FormatMoney(sale.CostTotal)</td>
+                                    <td class="@(sale.GrossProfit >= 0 ? "vp-quantity-positive" : "vp-quantity-negative")">@FormatMoney(sale.GrossProfit)</td>
+                                    <td>@FormatMoney(sale.TotalPaid)</td>
+                                    <td>
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@GetStatusColor(sale.Status)">
+                                            @ResolveStatus(sale.Status)
+                                        </MudChip>
+                                    </td>
+                                    <td>
+                                        <div class="vp-inventory-row-actions">
+                                            @if (_canViewDetails)
+                                            {
+                                                <MudTooltip Text="Ver detalle">
+                                                    <MudIconButton Icon="@Icons.Material.Outlined.Visibility"
+                                                                   Size="Size.Small"
+                                                                   Color="Color.Info"
+                                                                   OnClick="@(() => GoToDetail(sale.Id))" />
+                                                </MudTooltip>
+                                            }
+
+                                            @if (_canCancel)
+                                            {
+                                                <MudTooltip Text="Anular venta">
+                                                    <MudIconButton Icon="@Icons.Material.Outlined.Block"
+                                                                   Size="Size.Small"
+                                                                   Color="Color.Error"
+                                                                   Disabled="@(!IsActive(sale.Status) || _cancelingId == sale.Id)"
+                                                                   OnClick="@(() => CancelSaleAsync(sale))" />
+                                                </MudTooltip>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <footer class="vp-table-footer">
+                    <span>Mostrando @_sales.Count.ToString("N0") ventas</span>
+                    <span>Total listado: @FormatMoney(_sales.Sum(sale => sale.Total))</span>
+                </footer>
+            </section>
+        }
+    }
+</main>
+
+@code {
+    private static readonly DialogOptions CancelDialogOptions = new()
+    {
+        CloseButton = true,
+        FullWidth = true,
+        MaxWidth = MaxWidth.Small
+    };
+
+    private SaleListFilterDto _filter = new() { Status = "A" };
+    private IReadOnlyList<SaleDto> _sales = Array.Empty<SaleDto>();
+    private IReadOnlyList<BusinessDto> _businesses = Array.Empty<BusinessDto>();
+    private IReadOnlyList<ParameterOptionDto> _movementTypes = Array.Empty<ParameterOptionDto>();
+    private bool _loading;
+    private bool _catalogLoading;
+    private bool _accessDenied;
+    private bool _canCreate;
+    private bool _canViewDetails;
+    private bool _canCancel;
+    private int? _cancelingId;
+    private string _errorMessage = string.Empty;
+
+    private bool IsBusy => _loading || _catalogLoading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await PermissionState.LoadAsync();
+
+        _accessDenied = !PermissionState.HasPermission("ventas.listar");
+        _canCreate = PermissionState.HasPermission("ventas.crear");
+        _canViewDetails = PermissionState.HasPermission("ventas.consultar");
+        _canCancel = PermissionState.HasPermission("ventas.anular");
+
+        if (!_accessDenied)
+        {
+            await LoadCatalogsAsync();
+            await LoadSalesAsync();
+        }
+    }
+
+    private async Task LoadCatalogsAsync()
+    {
+        _catalogLoading = true;
+
+        try
+        {
+            var businessResponse = await BusinessService.ListAsync(new BusinessListFilterDto { Status = "A" });
+            if (businessResponse.IsSuccess)
+            {
+                _businesses = businessResponse.Data ?? Array.Empty<BusinessDto>();
+            }
+        }
+        finally
+        {
+            _catalogLoading = false;
+        }
+    }
+
+    private async Task LoadSalesAsync()
+    {
+        if (!PermissionState.HasPermission("ventas.listar"))
+        {
+            _accessDenied = true;
+            return;
+        }
+
+        _loading = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var response = await SaleService.ListAsync(_filter);
+            if (!response.IsSuccess)
+            {
+                _sales = Array.Empty<SaleDto>();
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            _sales = response.Data ?? Array.Empty<SaleDto>();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        _filter = new SaleListFilterDto { Status = "A" };
+        await LoadSalesAsync();
+    }
+
+    private void GoToCreate() => NavigationManager.NavigateTo("/ventas/nueva");
+
+    private void GoToDetail(int saleId) => NavigationManager.NavigateTo($"/ventas/{saleId}");
+
+    private async Task CancelSaleAsync(SaleDto sale)
+    {
+        if (!_canCancel || !IsActive(sale.Status))
+        {
+            return;
+        }
+
+        var movementTypeId = await AskCancellationMovementTypeAsync(
+            $"Selecciona el movimiento Kardex para anular la venta #{sale.Id}.",
+            "Anular venta");
+
+        if (!movementTypeId.HasValue)
+        {
+            return;
+        }
+
+        _cancelingId = sale.Id;
+
+        try
+        {
+            var response = await SaleService.CancelAsync(sale.Id, new SaleCancelDto
+            {
+                CancellationKardexMovementTypeId = movementTypeId.Value
+            });
+
+            if (!response.IsSuccess)
+            {
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            Snackbar.Add(string.IsNullOrWhiteSpace(response.Message) ? "Venta anulada correctamente." : response.Message, Severity.Success);
+            await LoadSalesAsync();
+        }
+        finally
+        {
+            _cancelingId = null;
+        }
+    }
+
+    private async Task<int?> AskCancellationMovementTypeAsync(string message, string confirmText)
+    {
+        if (_movementTypes.Count == 0)
+        {
+            var response = await ParameterService.ListByClassCodeAsync("MOV-KDX");
+            if (!response.IsSuccess)
+            {
+                await HandleFailureAsync(response.Message);
+                return null;
+            }
+
+            _movementTypes = response.Data ?? Array.Empty<ParameterOptionDto>();
+        }
+
+        var parameters = new DialogParameters
+        {
+            [nameof(KardexMovementCancelDialog.Message)] = message,
+            [nameof(KardexMovementCancelDialog.ConfirmText)] = confirmText,
+            [nameof(KardexMovementCancelDialog.MovementTypes)] = _movementTypes
+        };
+
+        var dialog = await DialogService.ShowAsync<KardexMovementCancelDialog>(confirmText, parameters, CancelDialogOptions);
+        var result = await dialog.Result;
+
+        return result is null || result.Canceled ? null : result.Data as int?;
+    }
+
+    private async Task HandleFailureAsync(string? message)
+    {
+        var resolvedMessage = string.IsNullOrWhiteSpace(message)
+            ? "No fue posible completar la operacion."
+            : message;
+
+        if (IsUnauthorizedMessage(resolvedMessage))
+        {
+            await AuthService.LogoutAsync();
+            Snackbar.Add("Tu sesion termino. Inicia sesion nuevamente.", Severity.Warning);
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        _errorMessage = resolvedMessage;
+        Snackbar.Add(resolvedMessage, Severity.Error);
+    }
+
+    private static bool IsActive(string? status) => string.Equals(status, "A", StringComparison.OrdinalIgnoreCase);
+
+    private static string ResolveStatus(string? status) => IsActive(status) ? "Activo" : "Inactivo";
+
+    private static Color GetStatusColor(string? status) => IsActive(status) ? Color.Success : Color.Default;
+
+    private static string ResolveText(string? value, string fallback) => string.IsNullOrWhiteSpace(value) ? fallback : value;
+
+    private static string FormatMoney(decimal value) => value.ToString("C2", CultureInfo.GetCultureInfo("es-CO"));
+
+    private static bool IsUnauthorizedMessage(string? message) =>
+        !string.IsNullOrWhiteSpace(message)
+        && (message.StartsWith("Sesion expirada", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("Sesión expirada", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("No hay una sesion activa", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("No hay una sesión activa", StringComparison.OrdinalIgnoreCase));
+}

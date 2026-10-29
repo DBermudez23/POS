@@ -1,0 +1,16 @@
+@import url("./ventaspro/01-tokens.css");
+@import url("./ventaspro/02-base.css");
+@import url("./ventaspro/03-utilities.css");
+@import url("./ventaspro/04-branding.css");
+@import url("./ventaspro/05-shell.css");
+@import url("./ventaspro/06-common-components.css");
+@import url("./ventaspro/07-dashboard.css");
+@import url("./ventaspro/08-inventory.css");
+@import url("./ventaspro/09-business.css");
+@import url("./ventaspro/10-users.css");
+@import url("./ventaspro/11-auth.css");
+@import url("./ventaspro/13-products.css");
+@import url("./ventaspro/15-transactions.css");
+@import url("./ventaspro/16-thirdparties.css");
+@import url("./ventaspro/12-responsive.css");
+@import url("./ventaspro/14-image-picker.css");

@@ -1,0 +1,17 @@
+<a class="vp-card vp-quick-action" href="@Href" style="--quick-color:@AccentColor; --quick-soft:@SoftColor;">
+    <span class="vp-quick-icon"><MudIcon Icon="@Icon" /></span>
+    <span class="vp-quick-copy">
+        <strong>@Title</strong>
+        <span>@Description</span>
+    </span>
+    <MudIcon Class="vp-quick-arrow" Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" />
+</a>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Description { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Icon { get; set; } = string.Empty;
+    [Parameter] public string Href { get; set; } = "#";
+    [Parameter] public string AccentColor { get; set; } = "#167B8E";
+    [Parameter] public string SoftColor { get; set; } = "#E5F8FB";
+}

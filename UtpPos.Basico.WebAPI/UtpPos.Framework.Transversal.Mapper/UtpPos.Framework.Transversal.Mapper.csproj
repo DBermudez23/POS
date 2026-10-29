@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Platforms>AnyCPU;x86</Platforms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AutoMapper" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\UtpPos.Framework.Application.DTO\UtpPos.Framework.Application.DTO.csproj" />
+    <ProjectReference Include="..\UtpPos.Framework.Domain.Entity\UtpPos.Framework.Domain.Entity.csproj" />
+  </ItemGroup>
+
+</Project>

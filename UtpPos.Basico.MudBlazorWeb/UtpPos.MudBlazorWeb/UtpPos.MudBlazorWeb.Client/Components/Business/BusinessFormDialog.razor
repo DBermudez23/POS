@@ -1,0 +1,209 @@
+@using UtpPos.Framework.Shared
+@inject IBusinessService BusinessService
+@inject IAuthService AuthService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<MudDialog>
+    <DialogContent>
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="mb-4">
+                @_errorMessage
+            </MudAlert>
+        }
+
+        <MudForm @ref="_form">
+            <div class="business-form-grid">
+                <MudTextField T="string"
+                              Label="NIT"
+                              @bind-Value="_model.Nit"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Required="true"
+                              RequiredError="El NIT es obligatorio."
+                              MaxLength="20"
+                              Disabled="_saving" />
+
+                <MudTextField T="string"
+                              Label="Nombre o razón social"
+                              @bind-Value="_model.Name"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Required="true"
+                              RequiredError="El nombre es obligatorio."
+                              MaxLength="80"
+                              Disabled="_saving" />
+
+                <MudTextField T="string"
+                              Label="Dirección"
+                              @bind-Value="_model.Address"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Required="true"
+                              RequiredError="La dirección es obligatoria."
+                              MaxLength="100"
+                              Disabled="_saving" />
+
+                <MudTextField T="string"
+                              Label="Teléfono"
+                              @bind-Value="_model.Phone"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              MaxLength="20"
+                              Disabled="_saving" />
+
+                <MudSelect T="string"
+                           Label="Estado"
+                           @bind-Value="_model.Status"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Required="true"
+                           Disabled="_saving">
+                    <MudSelectItem T="string" Value="@("A")">Activo</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("I")">Inactivo</MudSelectItem>
+                </MudSelect>
+            </div>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Disabled="_saving"
+                   OnClick="SaveAsync">
+            @if (_saving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Guardando...</span>
+            }
+            else
+            {
+                <span>@(_isEditing ? "Guardar cambios" : "Crear negocio")</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance Dialog { get; set; } = null!;
+    [Parameter] public BusinessDto? Business { get; set; }
+
+    private readonly BusinessFormModel _model = new();
+    private MudForm? _form;
+    private bool _saving;
+    private bool _isEditing;
+    private string? _originalPhone;
+    private string _errorMessage = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        _isEditing = Business is not null;
+        if (Business is null)
+        {
+            return;
+        }
+
+        _model.Nit = Business.Nit;
+        _model.Name = Business.Name;
+        _model.Address = Business.Address;
+        _model.Phone = Business.Phone;
+        _model.Status = Business.Status;
+        _originalPhone = Business.Phone;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_form is null)
+        {
+            return;
+        }
+
+        await _form.Validate();
+        if (!_form.IsValid)
+        {
+            return;
+        }
+
+        _saving = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var response = await SaveBusinessAsync();
+            if (!response.IsSuccess)
+            {
+                if (await HandleUnauthorizedAsync(response.Message))
+                {
+                    return;
+                }
+
+                _errorMessage = string.IsNullOrWhiteSpace(response.Message)
+                    ? "No fue posible guardar el negocio."
+                    : response.Message;
+                return;
+            }
+
+            Dialog.Close(DialogResult.Ok(response.Message));
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private Task<Response<int>> SaveBusinessAsync()
+    {
+        if (Business is null)
+        {
+            return BusinessService.CreateAsync(new BusinessCreateDto
+            {
+                Nit = _model.Nit.Trim(),
+                Name = _model.Name.Trim(),
+                Address = _model.Address.Trim(),
+                Phone = EmptyToNull(_model.Phone),
+                Status = _model.Status
+            });
+        }
+
+        return BusinessService.UpdateAsync(Business.Id, new BusinessUpdateDto
+        {
+            Nit = _model.Nit.Trim(),
+            Name = _model.Name.Trim(),
+            Address = _model.Address.Trim(),
+            Phone = EmptyToNull(_model.Phone),
+            Status = _model.Status,
+            ClearPhone = !string.IsNullOrWhiteSpace(_originalPhone) && string.IsNullOrWhiteSpace(_model.Phone)
+        });
+    }
+
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task<bool> HandleUnauthorizedAsync(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message)
+            || (!message.StartsWith("Sesión expirada", StringComparison.OrdinalIgnoreCase)
+                && !message.StartsWith("No hay una sesión activa", StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        await AuthService.LogoutAsync();
+        Dialog.Cancel();
+        Snackbar.Add("Tu sesión terminó. Inicia sesión nuevamente.", Severity.Warning);
+        NavigationManager.NavigateTo("/login", replace: true);
+        return true;
+    }
+
+    private static string? EmptyToNull(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private sealed class BusinessFormModel
+    {
+        public string Nit { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Address { get; set; } = string.Empty;
+        public string? Phone { get; set; }
+        public string Status { get; set; } = "A";
+    }
+}

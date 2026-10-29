@@ -1,0 +1,492 @@
+@using UtpPos.Framework.Shared
+@using UtpPos.Framework.Shared.Product
+@using UtpPos.Framework.Shared.Parameter
+@using UtpPos.Framework.Interface.Auth
+@using UtpPos.Framework.Interface.Parameter
+@using UtpPos.Framework.Interface.Product
+
+@inject IProductService ProductService
+@inject IAuthService AuthService
+@inject IParameterService ParameterService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<MudDialog>
+    <DialogContent>
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="mb-4">
+                @_errorMessage
+            </MudAlert>
+        }
+
+        @if (!_isEditing && _createdByUserId.HasValue)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true" Class="mb-4">
+                El producto quedará registrado con el usuario autenticado: @_createdByUserName.
+            </MudAlert>
+        }
+
+        <MudForm @ref="_form">
+            <div class="product-editor">
+                <aside class="product-image-panel">
+                    <ProductImagePicker CurrentImageUrl="@CurrentImageUrl" Disabled="@(_saving || _loadingCurrentUser)"
+                                        ImageUrlChanged="OnImageUrlChangedAsync" UploadingChanged="OnImageUploadingChangedAsync"
+                                        OnImageCleared="OnImageClearedAsync" />
+
+                    @if (!string.IsNullOrWhiteSpace(_imageError))
+                    {
+                        <MudAlert Severity="Severity.Error" Variant="Variant.Text" Dense="true">
+                            @_imageError
+                        </MudAlert>
+                    }
+                </aside>
+
+                <div class="product-form-grid">
+                    <MudTextField T="string" Label="Nombre" @bind-Value="_model.Name" Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" Required="true" RequiredError="El nombre es obligatorio." MaxLength="100"
+                                  Disabled="_saving" />
+
+                    <MudTextField T="string" Label="Descripción" @bind-Value="_model.Description"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" Required="true"
+                                  RequiredError="La descripción es obligatoria." MaxLength="100" Disabled="_saving" />
+
+                    <MudSelect T="int?" Label="Categoría" HelperText="Selecciona una categoría activa."
+                               @bind-Value="_model.CategoryId" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true"
+                               RequiredError="La categoría es obligatoria."
+                               Disabled="@(_saving || _loadingCurrentUser || _loadingCategories)">
+
+                        @if (_loadingCategories)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)null)" Disabled="true">
+                                Cargando categorías...
+                            </MudSelectItem>
+                        }
+                        else
+                        {
+                            @foreach (var category in _categories)
+                            {
+                                <MudSelectItem T="int?" Value="@((int?)category.Id)">
+                                    @category.Description
+                                </MudSelectItem>
+                            }
+                        }
+                    </MudSelect>
+
+                    @if (_isEditing)
+                    {
+                        <MudTextField T="string" Label="Valor base de venta" Value="@FormatSaleValue(_model.SaleValue)"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="true"
+                                      HelperText="Valor calculado sin IVA desde costo ponderado y margen." />
+                    }
+
+                    <MudNumericField T="decimal?" Label="IVA %" @bind-Value="_model.VatPercentage"
+                                     Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Disabled="_saving" />
+
+                    <MudNumericField T="decimal?" Label="Margen ganancia %" @bind-Value="_model.ProfitMarginPercentage"
+                                     Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Disabled="_saving" />
+
+                    <MudTextField T="string" Label="External ID / SKU"
+                                  HelperText="Úsalo para códigos de ecommerce, importación o plataforma externa."
+                                  @bind-Value="_model.ExternalId" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="100"
+                                  Disabled="@(_saving || _model.ClearExternalId)" />
+
+                    <MudNumericField T="int?" Label="Negocio" HelperText="Negocio al que pertenece el producto."
+                                      @bind-Value="_model.BusinessId" Variant="Variant.Outlined" Margin="Margin.Dense" Min="1"
+                                      Required="true" RequiredError="El negocio es obligatorio." Disabled="_saving" />
+
+                    <MudSelect T="string" Label="Estado" @bind-Value="_model.Status" Variant="Variant.Outlined"
+                               Margin="Margin.Dense" Required="true" Disabled="_saving">
+                        <MudSelectItem T="string" Value="@("A")">Activo</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("I")">Inactivo</MudSelectItem>
+                    </MudSelect>
+                </div>
+            </div>
+
+            @if (_isEditing)
+            {
+                <div class="product-form-toggles">
+                    <MudCheckBox T="bool" Label="Limpiar External ID" @bind-Value="_model.ClearExternalId"
+                                 Disabled="_saving" />
+                </div>
+            }
+        </MudForm>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton Disabled="@(_saving || _imageUploading)" OnClick="Cancel">
+            Cancelar
+        </MudButton>
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(_saving || _loadingCurrentUser || _imageUploading)" OnClick="SaveAsync">
+            @if (_saving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Guardando...</span>
+            }
+            else if (_imageUploading)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Subiendo imagen...</span>
+            }
+            else
+            {
+                <span>@(_isEditing ? "Guardar cambios" : "Crear producto")</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance Dialog { get; set; } = null!;
+
+    [Parameter] public ProductDto? Product { get; set; }
+
+    private readonly ProductFormModel _model = new();
+
+    private MudForm? _form;
+
+    private bool _saving;
+    private bool _isEditing;
+    private bool _loadingCurrentUser;
+    private bool _imageUploading;
+
+    private int? _createdByUserId;
+
+    private string _createdByUserName = "usuario actual";
+    private string _errorMessage = string.Empty;
+    private string _imageError = string.Empty;
+
+    private const string ProductCategoryClassCode = "CAT-PROD";
+
+    private bool _loadingCategories;
+
+    private IReadOnlyList<ParameterOptionDto> _categories = Array.Empty<ParameterOptionDto>();
+
+    private string? CurrentImageUrl =>
+        _model.ClearImage
+            ? null
+            : _model.Image;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCategoriesAsync();
+
+        _isEditing = Product is not null;
+
+        if (Product is null)
+        {
+            _model.Status = "A";
+            _model.VatPercentage = 0;
+            _model.ProfitMarginPercentage = 0;
+
+            await LoadCurrentUserAsync();
+            return;
+        }
+
+        _model.Name = Product.Name;
+        _model.Description = Product.Description;
+        _model.CategoryId = Product.CategoryId;
+        _model.Image = Product.Image;
+        _model.SaleValue = Product.SaleValue;
+        _model.VatPercentage = Product.VatPercentage;
+        _model.ProfitMarginPercentage = Product.ProfitMarginPercentage;
+        _model.ExternalId = Product.ExternalId;
+        _model.BusinessId = Product.BusinessId;
+        _model.Status = Product.Status;
+    }
+
+    private async Task LoadCategoriesAsync()
+    {
+        _loadingCategories = true;
+
+        try
+        {
+            var response = await ParameterService.ListByClassCodeAsync(ProductCategoryClassCode);
+
+            if (!response.IsSuccess)
+            {
+                _categories = Array.Empty<ParameterOptionDto>();
+                _errorMessage = response.Message ?? "No fue posible cargar las categorías de producto.";
+                return;
+            }
+
+            _categories = response.Data ?? Array.Empty<ParameterOptionDto>();
+        }
+        catch
+        {
+            _categories = Array.Empty<ParameterOptionDto>();
+            _errorMessage = "No fue posible cargar las categorías de producto.";
+        }
+        finally
+        {
+            _loadingCategories = false;
+        }
+    }
+
+    private async Task LoadCurrentUserAsync()
+    {
+        _loadingCurrentUser = true;
+
+        try
+        {
+            var response = await AuthService.GetCurrentUserAsync();
+
+            if (!response.IsSuccess || response.Data is null)
+            {
+                _errorMessage = string.IsNullOrWhiteSpace(response.Message)
+                    ? "No fue posible identificar el usuario autenticado para crear el producto."
+                    : response.Message;
+
+                return;
+            }
+
+            _createdByUserId = response.Data.Id;
+            _createdByUserName = response.Data.Name;
+            _model.BusinessId ??= response.Data.BusinessId;
+        }
+        finally
+        {
+            _loadingCurrentUser = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_form is null)
+        {
+            return;
+        }
+
+        if (_imageUploading)
+        {
+            _errorMessage = "Espera a que termine la carga de la imagen antes de guardar el producto.";
+            return;
+        }
+
+        _errorMessage = string.Empty;
+        _imageError = ValidateImageLocation(_model.Image, _model.ClearImage);
+
+        await _form.Validate();
+
+        if (!_form.IsValid || !string.IsNullOrWhiteSpace(_imageError))
+        {
+            return;
+        }
+
+        if (Product is null && !_createdByUserId.HasValue)
+        {
+            _errorMessage = "No fue posible identificar el usuario autenticado para crear el producto.";
+            return;
+        }
+
+        _saving = true;
+
+        try
+        {
+            var response = await SaveProductAsync();
+            if (!response.IsSuccess)
+            {
+                if (await HandleUnauthorizedAsync(response.Message))
+                {
+                    return;
+                }
+
+                _errorMessage = string.IsNullOrWhiteSpace(response.Message)
+                    ? "No fue posible guardar el producto."
+                    : response.Message;
+
+                return;
+            }
+
+            Dialog.Close(DialogResult.Ok(response.Message));
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private Task<Response<int>> SaveProductAsync()
+    {
+        if (Product is null)
+        {
+            return ProductService.CreateAsync(new ProductCreateDto
+            {
+                Name = _model.Name.Trim(),
+                Description = _model.Description.Trim(),
+                CategoryId = _model.CategoryId!.Value,
+                Image = EmptyToNull(_model.Image),
+                VatPercentage = _model.VatPercentage ?? 0,
+                ProfitMarginPercentage = _model.ProfitMarginPercentage ?? 0,
+                ExternalId = EmptyToNull(_model.ExternalId),
+                BusinessId = _model.BusinessId,
+                CreatedByUserId = _createdByUserId!.Value,
+                Status = _model.Status
+            });
+        }
+
+        return ProductService.UpdateAsync(Product.Id, new ProductUpdateDto
+        {
+            Name = EmptyToNull(_model.Name),
+            Description = EmptyToNull(_model.Description),
+            CategoryId = _model.CategoryId,
+            Image = _model.ClearImage ? null : EmptyToNull(_model.Image),
+            VatPercentage = _model.VatPercentage,
+            ProfitMarginPercentage = _model.ProfitMarginPercentage,
+            ExternalId = _model.ClearExternalId ? null : EmptyToNull(_model.ExternalId),
+            BusinessId = _model.BusinessId,
+            Status = _model.Status,
+            ClearImage = _model.ClearImage,
+            ClearExternalId = _model.ClearExternalId,
+            ClearBusiness = false
+        });
+    }
+
+    private Task OnImageUrlChangedAsync(string? imageUrl)
+    {
+        _errorMessage = string.Empty;
+        _imageError = string.Empty;
+
+        _model.Image = EmptyToNull(imageUrl);
+
+        if (!string.IsNullOrWhiteSpace(_model.Image))
+        {
+            _model.ClearImage = false;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Task OnImageUploadingChangedAsync(bool uploading)
+    {
+        _imageUploading = uploading;
+
+        if (uploading)
+        {
+            _errorMessage = string.Empty;
+            _imageError = string.Empty;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Task OnImageClearedAsync()
+    {
+        _errorMessage = string.Empty;
+        _imageError = string.Empty;
+
+        _model.Image = null;
+
+        if (_isEditing)
+        {
+            _model.ClearImage = true;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private void Cancel()
+    {
+        if (_imageUploading)
+        {
+            Snackbar.Add("Espera a que termine la carga de la imagen.", Severity.Info);
+            return;
+        }
+
+        Dialog.Cancel();
+    }
+
+    private async Task<bool> HandleUnauthorizedAsync(string? message)
+    {
+        if (!IsUnauthorizedMessage(message))
+        {
+            return false;
+        }
+
+        await AuthService.LogoutAsync();
+
+        Dialog.Cancel();
+
+        Snackbar.Add("Tu sesión terminó. Inicia sesión nuevamente.", Severity.Warning);
+
+        NavigationManager.NavigateTo("/login", replace: true);
+
+        return true;
+    }
+
+    private static string ValidateImageLocation(string? image, bool clearImage)
+    {
+        if (clearImage || string.IsNullOrWhiteSpace(image))
+        {
+            return string.Empty;
+        }
+
+        var value = image.Trim();
+
+        if (value.Length > 500)
+        {
+            return "La imagen no puede superar 500 caracteres.";
+        }
+
+        if (Uri.TryCreate(value, UriKind.Absolute, out var uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        {
+            return string.Empty;
+        }
+
+        if (value.StartsWith("/", StringComparison.Ordinal) || value.Contains('/'))
+        {
+            return string.Empty;
+        }
+
+        return "Ingresa una URL http/https o una ruta pública válida.";
+    }
+
+    private static bool IsUnauthorizedMessage(string? message) =>
+        !string.IsNullOrWhiteSpace(message)
+        && (message.StartsWith("Sesión expirada", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("Sesion expirada", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("No hay una sesión activa", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("No hay una sesion activa", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("Sesi", StringComparison.OrdinalIgnoreCase));
+
+    private static string? EmptyToNull(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string FormatSaleValue(decimal? value)
+    {
+        var saleValue = value.GetValueOrDefault();
+        return saleValue > 0
+            ? saleValue.ToString("C2", CultureInfo.GetCultureInfo("es-CO"))
+            : "Pendiente de compra";
+    }
+
+    private sealed class ProductFormModel
+    {
+        public string Name { get; set; } = string.Empty;
+
+        public string Description { get; set; } = string.Empty;
+
+        public int? CategoryId { get; set; }
+
+        public string? Image { get; set; }
+
+        public decimal? SaleValue { get; set; }
+
+        public decimal? VatPercentage { get; set; }
+
+        public decimal? ProfitMarginPercentage { get; set; }
+
+        public string? ExternalId { get; set; }
+
+        public int? BusinessId { get; set; }
+
+        public string Status { get; set; } = "A";
+
+        public bool ClearImage { get; set; }
+
+        public bool ClearExternalId { get; set; }
+    }
+}

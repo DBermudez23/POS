@@ -1,0 +1,293 @@
+@inject IRbacManagementService RbacManagementService
+@inject IBusinessService BusinessService
+@inject IAuthService AuthService
+@inject PermissionStateService PermissionState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<section class="vp-rbac-panel-stack">
+    <section class="vp-card vp-rbac-toolbar">
+        <div class="vp-rbac-toolbar__group vp-rbac-toolbar__group--wide">
+            <MudTextField T="string"
+                          Label="Nombre del rol"
+                          @bind-Value="_filter.Name"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Disabled="_loading" />
+
+            <MudSelect T="string"
+                       Label="Estado"
+                       @bind-Value="_filter.Status"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Clearable="true"
+                       Disabled="_loading">
+                <MudSelectItem T="string" Value="@("A")">Activo</MudSelectItem>
+                <MudSelectItem T="string" Value="@("I")">Inactivo</MudSelectItem>
+            </MudSelect>
+
+            <MudCheckBox T="bool?" @bind-Value="_filter.OnlyGlobal" Label="Solo globales" Disabled="_loading" />
+        </div>
+
+        <div class="vp-rbac-toolbar__actions">
+            <MudButton Variant="Variant.Outlined" Disabled="_loading" OnClick="ClearFiltersAsync">
+                Limpiar
+            </MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_loading" OnClick="LoadRolesAsync">
+                Buscar
+            </MudButton>
+            <PermissionView Permission="roles.crear">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           StartIcon="@Icons.Material.Outlined.AddModerator"
+                           OnClick="OpenCreateDialogAsync">
+                    Nuevo rol
+                </MudButton>
+            </PermissionView>
+        </div>
+    </section>
+
+    @if (_accessDenied)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+            No tienes permisos para consultar roles.
+        </MudAlert>
+    }
+    else if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+            @_errorMessage
+        </MudAlert>
+    }
+    else if (_loading)
+    {
+        <div class="vp-card vp-rbac-loading">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            <MudText Typo="Typo.body2" Class="vp-muted">Consultando roles...</MudText>
+        </div>
+    }
+    else if (_roles.Count == 0)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.AdminPanelSettings"
+                    Title="No se encontraron roles"
+                    Message="Crea un rol o ajusta los filtros actuales." />
+    }
+    else
+    {
+        <section class="vp-card vp-rbac-table-card">
+            <MudTable T="RbacRoleDto" Items="@_roles" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="0">
+                <HeaderContent>
+                    <MudTh>Rol</MudTh>
+                    <MudTh>Negocio</MudTh>
+                    <MudTh>Indicadores</MudTh>
+                    <MudTh>Estado</MudTh>
+                    <MudTh Class="vp-rbac-actions-heading">Acciones</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Rol">
+                        <div class="vp-rbac-user-cell">
+                            <strong>@context.Name</strong>
+                            <span>@(string.IsNullOrWhiteSpace(context.Description) ? "Sin descripcion" : context.Description)</span>
+                        </div>
+                    </MudTd>
+                    <MudTd DataLabel="Negocio">@(context.BusinessName ?? "Global")</MudTd>
+                    <MudTd DataLabel="Indicadores">
+                        <div class="vp-rbac-chip-row">
+                            @if (context.IsSystem == "S")
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary">Sistema</MudChip>
+                            }
+                            @if (context.FullAccess == "S")
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary">Acceso total</MudChip>
+                            }
+                        </div>
+                    </MudTd>
+                    <MudTd DataLabel="Estado">
+                        <MudChip T="string"
+                                 Size="Size.Small"
+                                 Variant="Variant.Outlined"
+                                 Color="@(context.Status == "A" ? Color.Success : Color.Default)">
+                            @(context.Status == "A" ? "Activo" : "Inactivo")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Acciones">
+                        <div class="vp-rbac-row-actions">
+                            <PermissionView Permission="roles.actualizar">
+                                <MudTooltip Text="Permisos del rol">
+                                    <MudIconButton Icon="@Icons.Material.Outlined.Key"
+                                                   Size="Size.Small"
+                                                   Color="Color.Info"
+                                                   OnClick="@(() => OpenPermissionsDialogAsync(context))" />
+                                </MudTooltip>
+                            </PermissionView>
+                            <PermissionView Permission="roles.actualizar">
+                                <MudTooltip Text="Editar rol">
+                                    <MudIconButton Icon="@Icons.Material.Outlined.Edit"
+                                                   Size="Size.Small"
+                                                   Color="Color.Primary"
+                                                   OnClick="@(() => OpenEditDialogAsync(context))" />
+                                </MudTooltip>
+                            </PermissionView>
+                            <PermissionView Permission="roles.eliminar">
+                                <MudTooltip Text="Inactivar rol">
+                                    <MudIconButton Icon="@Icons.Material.Outlined.Block"
+                                                   Size="Size.Small"
+                                                   Color="Color.Error"
+                                                   Disabled="@(context.Status != "A")"
+                                                   OnClick="@(() => DeleteRoleAsync(context))" />
+                                </MudTooltip>
+                            </PermissionView>
+                        </div>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </section>
+    }
+</section>
+
+@code {
+    private static readonly DialogOptions DialogOptions = new()
+    {
+        CloseButton = true,
+        FullWidth = true,
+        MaxWidth = MaxWidth.Medium
+    };
+
+    private readonly RbacRoleFilterDto _filter = new() { Status = "A" };
+    private IReadOnlyList<RbacRoleDto> _roles = Array.Empty<RbacRoleDto>();
+    private bool _loading;
+    private bool _accessDenied;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await PermissionState.LoadAsync();
+        _accessDenied = !PermissionState.HasPermission("roles.listar");
+        if (!_accessDenied)
+        {
+            await LoadRolesAsync();
+        }
+    }
+
+    private async Task LoadRolesAsync()
+    {
+        if (!PermissionState.HasPermission("roles.listar"))
+        {
+            _accessDenied = true;
+            return;
+        }
+
+        _loading = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var response = await RbacManagementService.ListRolesAsync(_filter);
+            if (!response.IsSuccess)
+            {
+                _roles = Array.Empty<RbacRoleDto>();
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            _roles = response.Data ?? Array.Empty<RbacRoleDto>();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        _filter.Name = null;
+        _filter.Status = "A";
+        _filter.OnlyGlobal = null;
+        await LoadRolesAsync();
+    }
+
+    private async Task OpenCreateDialogAsync()
+    {
+        var dialog = await DialogService.ShowAsync<RoleFormDialog>("Nuevo rol", DialogOptions);
+        await HandleDialogResultAsync(await dialog.Result);
+    }
+
+    private async Task OpenEditDialogAsync(RbacRoleDto role)
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(RoleFormDialog.Role)] = role
+        };
+
+        var dialog = await DialogService.ShowAsync<RoleFormDialog>("Editar rol", parameters, DialogOptions);
+        await HandleDialogResultAsync(await dialog.Result);
+    }
+
+    private async Task OpenPermissionsDialogAsync(RbacRoleDto role)
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(RolePermissionsDialog.Role)] = role
+        };
+
+        await DialogService.ShowAsync<RolePermissionsDialog>($"Permisos de {role.Name}", parameters, DialogOptions);
+    }
+
+    private async Task DeleteRoleAsync(RbacRoleDto role)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Inactivar rol",
+            $"Deseas inactivar el rol {role.Name}?",
+            yesText: "Inactivar",
+            noText: null,
+            cancelText: "Cancelar");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        var response = await RbacManagementService.DeleteRoleAsync(role.Id);
+        if (!response.IsSuccess)
+        {
+            await HandleFailureAsync(response.Message);
+            return;
+        }
+
+        Snackbar.Add(response.Message, Severity.Success);
+        await LoadRolesAsync();
+    }
+
+    private async Task HandleDialogResultAsync(DialogResult? result)
+    {
+        if (result is null || result.Canceled)
+        {
+            return;
+        }
+
+        Snackbar.Add(result.Data as string ?? "Operacion completada correctamente.", Severity.Success);
+        await LoadRolesAsync();
+    }
+
+    private async Task HandleFailureAsync(string? message)
+    {
+        var resolvedMessage = string.IsNullOrWhiteSpace(message)
+            ? "No fue posible completar la operacion."
+            : message;
+
+        if (resolvedMessage.StartsWith("Sesion expirada", StringComparison.OrdinalIgnoreCase)
+            || resolvedMessage.StartsWith("No hay una sesion activa", StringComparison.OrdinalIgnoreCase)
+            || resolvedMessage.StartsWith("Sesi", StringComparison.OrdinalIgnoreCase))
+        {
+            await AuthService.LogoutAsync();
+            Snackbar.Add("Tu sesion termino. Inicia sesion nuevamente.", Severity.Warning);
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        _errorMessage = resolvedMessage;
+        Snackbar.Add(resolvedMessage, Severity.Error);
+    }
+}

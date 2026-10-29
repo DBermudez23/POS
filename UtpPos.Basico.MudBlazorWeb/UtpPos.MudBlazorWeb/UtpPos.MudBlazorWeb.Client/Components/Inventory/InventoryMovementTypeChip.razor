@@ -1,0 +1,14 @@
+<button type="button"
+        class="vp-filter-chip @(Selected ? "vp-filter-chip--active" : null)"
+        aria-pressed="@Selected"
+        @onclick="SelectAsync">
+    @Text
+</button>
+
+@code {
+    [Parameter, EditorRequired] public string Text { get; set; } = string.Empty;
+    [Parameter] public bool Selected { get; set; }
+    [Parameter] public EventCallback<string> OnSelected { get; set; }
+
+    private Task SelectAsync() => OnSelected.InvokeAsync(Text);
+}

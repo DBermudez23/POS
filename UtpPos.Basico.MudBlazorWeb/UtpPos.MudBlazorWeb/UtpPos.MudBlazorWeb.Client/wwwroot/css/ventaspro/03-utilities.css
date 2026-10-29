@@ -1,0 +1,19 @@
+/* VentasPro - Utilities
+   Generic layout and presentation helpers shared by multiple features.
+*/
+.vp-card {
+    background: var(--vp-card);
+    border: 1px solid var(--vp-border);
+    border-radius: var(--vp-radius);
+    box-shadow: var(--vp-shadow);
+}
+
+.vp-page {
+    width: 100%;
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 28px 30px 42px;
+}
+
+.vp-muted { color: var(--vp-muted); }
+.vp-section-gap { margin-top: 26px; }

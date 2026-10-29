@@ -1,0 +1,343 @@
+@page "/ventas/{Id:int}"
+@attribute [Authorize]
+@inject ISaleService SaleService
+@inject IParameterService ParameterService
+@inject IAuthService AuthService
+@inject PermissionStateService PermissionState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<PageTitle>Detalle venta | VentasPro</PageTitle>
+
+<main class="vp-page vp-transaction-page">
+    <PageHeader Kicker="Ventas"
+                Title="Detalle de venta"
+                Subtitle="Consulta encabezado, productos, pagos, costos y utilidad de la venta.">
+        <Action>
+            <div class="vp-transaction-header-actions">
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Default"
+                           StartIcon="@Icons.Material.Outlined.ArrowBack"
+                           OnClick="GoBack">
+                    Volver
+                </MudButton>
+                @if (_canCancel && _sale is not null && IsActive(_sale.Status))
+                {
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Error"
+                               Disabled="_canceling"
+                               StartIcon="@Icons.Material.Outlined.Block"
+                               OnClick="CancelSaleAsync">
+                        Anular venta
+                    </MudButton>
+                }
+            </div>
+        </Action>
+    </PageHeader>
+
+    @if (_accessDenied)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+            No tienes permisos para consultar ventas.
+        </MudAlert>
+    }
+    else if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+            @_errorMessage
+        </MudAlert>
+    }
+    else if (_loading)
+    {
+        <div class="vp-card vp-transaction-loading">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            <MudText Typo="Typo.body2" Class="vp-muted">Consultando venta...</MudText>
+        </div>
+    }
+    else if (_sale is null)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.ReceiptLong"
+                    Title="Venta no encontrada"
+                    Message="La venta solicitada no existe o no está disponible." />
+    }
+    else
+    {
+        <section class="vp-metric-grid vp-transaction-metrics">
+            <MetricCard Label="Total" Value="@FormatMoney(_sale.Total)" Icon="@Icons.Material.Outlined.Payments" AccentColor="#14784F" SoftColor="#E5F7EF" Helper="Total venta" />
+            <MetricCard Label="Costo total" Value="@FormatMoney(_sale.CostTotal)" Icon="@Icons.Material.Outlined.Inventory" Helper="Costo registrado" />
+            <MetricCard Label="Utilidad bruta" Value="@FormatMoney(_sale.GrossProfit)" Icon="@Icons.Material.Outlined.TrendingUp" AccentColor="#315CAA" SoftColor="#EAF0FB" Helper="Total - costo" />
+            <MetricCard Label="Total pagado" Value="@FormatMoney(_sale.TotalPaid)" Icon="@Icons.Material.Outlined.CreditScore" AccentColor="#A76A13" SoftColor="#FFF4DF" Helper="Pagos aplicados" />
+        </section>
+
+        <section class="vp-card vp-transaction-summary-card">
+            <div>
+                <span>Venta</span>
+                <strong>#@_sale.Id</strong>
+                <small>@_sale.Date.ToString("dd/MM/yyyy HH:mm")</small>
+            </div>
+            <div>
+                <span>Negocio</span>
+                <strong>@_sale.BusinessName</strong>
+                <small>Id @_sale.BusinessId</small>
+            </div>
+            <div>
+                <span>Cliente</span>
+                <strong>@ResolveText(_sale.ThirdPartyName, $"Tercero #{_sale.ThirdPartyId}")</strong>
+                <small>@ResolveText(_sale.ThirdPartyDocumentNumber, "Sin documento")</small>
+            </div>
+            <div>
+                <span>Usuario</span>
+                <strong>@ResolveText(_sale.UserName, $"Usuario #{_sale.UserId}")</strong>
+                <small>Id @_sale.UserId</small>
+            </div>
+            <div>
+                <span>Estado</span>
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@GetStatusColor(_sale.Status)">
+                    @ResolveStatus(_sale.Status)
+                </MudChip>
+            </div>
+        </section>
+
+        <section class="vp-section-heading">
+            <div>
+                <h2>Productos</h2>
+                <p>Detalle de productos vendidos.</p>
+            </div>
+        </section>
+
+        <section class="vp-card vp-table-card" aria-label="Detalle de productos vendidos">
+            <div class="vp-table-scroll">
+                <table class="vp-inventory-table vp-transaction-table">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Cantidad</th>
+                            <th>Valor unitario</th>
+                            <th>IVA %</th>
+                            <th>Subtotal</th>
+                            <th>Valor IVA</th>
+                            <th>Total</th>
+                            <th>Costo unidad</th>
+                            <th>Costo total</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var detail in _sale.Details)
+                        {
+                            <tr>
+                                <td class="vp-product-cell">
+                                    <strong>@detail.ProductName</strong>
+                                    <span>@ResolveText(detail.ProductExternalId, $"Producto #{detail.ProductId}")</span>
+                                </td>
+                                <td>@detail.Quantity.ToString("N2")</td>
+                                <td>@FormatMoney(detail.UnitValue)</td>
+                                <td>@detail.VatPercentage.ToString("N2")%</td>
+                                <td>@FormatMoney(detail.Subtotal)</td>
+                                <td>@FormatMoney(detail.VatValue)</td>
+                                <td><strong>@FormatMoney(detail.Total)</strong></td>
+                                <td>@FormatMoney(detail.UnitCost)</td>
+                                <td>@FormatMoney(detail.CostTotal)</td>
+                                <td>@ResolveStatus(detail.Status)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="vp-section-heading">
+            <div>
+                <h2>Pagos</h2>
+                <p>Medios de pago aplicados a la venta.</p>
+            </div>
+        </section>
+
+        <section class="vp-card vp-table-card" aria-label="Pagos de venta">
+            <div class="vp-table-scroll">
+                <table class="vp-inventory-table vp-transaction-table">
+                    <thead>
+                        <tr>
+                            <th>Medio de pago</th>
+                            <th>Valor recibido</th>
+                            <th>Valor cambio</th>
+                            <th>Valor aplicado</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var payment in _sale.Payments)
+                        {
+                            <tr>
+                                <td>@ResolveText(payment.PaymentMethodName, $"Medio #{payment.PaymentMethodId}")</td>
+                                <td>@FormatMoney(payment.ReceivedValue)</td>
+                                <td>@FormatMoney(payment.ChangeValue)</td>
+                                <td><strong>@FormatMoney(payment.ReceivedValue - payment.ChangeValue)</strong></td>
+                                <td>@ResolveStatus(payment.Status)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+</main>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private static readonly DialogOptions CancelDialogOptions = new()
+    {
+        CloseButton = true,
+        FullWidth = true,
+        MaxWidth = MaxWidth.Small
+    };
+
+    private SaleDetailDto? _sale;
+    private IReadOnlyList<ParameterOptionDto> _movementTypes = Array.Empty<ParameterOptionDto>();
+    private bool _loading;
+    private bool _accessDenied;
+    private bool _canCancel;
+    private bool _canceling;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await PermissionState.LoadAsync();
+        _accessDenied = !PermissionState.HasPermission("ventas.consultar");
+        _canCancel = PermissionState.HasPermission("ventas.anular");
+
+        if (!_accessDenied)
+        {
+            await LoadSaleAsync();
+        }
+    }
+
+    private async Task LoadSaleAsync()
+    {
+        _loading = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var response = await SaleService.GetByIdAsync(Id);
+            if (!response.IsSuccess)
+            {
+                _sale = null;
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            _sale = response.Data;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void GoBack() => NavigationManager.NavigateTo("/ventas");
+
+    private async Task CancelSaleAsync()
+    {
+        if (_sale is null || !_canCancel || !IsActive(_sale.Status))
+        {
+            return;
+        }
+
+        var movementTypeId = await AskCancellationMovementTypeAsync(
+            $"Selecciona el movimiento Kardex para anular la venta #{_sale.Id}.",
+            "Anular venta");
+
+        if (!movementTypeId.HasValue)
+        {
+            return;
+        }
+
+        _canceling = true;
+
+        try
+        {
+            var response = await SaleService.CancelAsync(_sale.Id, new SaleCancelDto
+            {
+                CancellationKardexMovementTypeId = movementTypeId.Value
+            });
+
+            if (!response.IsSuccess)
+            {
+                await HandleFailureAsync(response.Message);
+                return;
+            }
+
+            Snackbar.Add(string.IsNullOrWhiteSpace(response.Message) ? "Venta anulada correctamente." : response.Message, Severity.Success);
+            await LoadSaleAsync();
+        }
+        finally
+        {
+            _canceling = false;
+        }
+    }
+
+    private async Task<int?> AskCancellationMovementTypeAsync(string message, string confirmText)
+    {
+        if (_movementTypes.Count == 0)
+        {
+            var response = await ParameterService.ListByClassCodeAsync("MOV-KDX");
+            if (!response.IsSuccess)
+            {
+                await HandleFailureAsync(response.Message);
+                return null;
+            }
+
+            _movementTypes = response.Data ?? Array.Empty<ParameterOptionDto>();
+        }
+
+        var parameters = new DialogParameters
+        {
+            [nameof(KardexMovementCancelDialog.Message)] = message,
+            [nameof(KardexMovementCancelDialog.ConfirmText)] = confirmText,
+            [nameof(KardexMovementCancelDialog.MovementTypes)] = _movementTypes
+        };
+
+        var dialog = await DialogService.ShowAsync<KardexMovementCancelDialog>(confirmText, parameters, CancelDialogOptions);
+        var result = await dialog.Result;
+
+        return result is null || result.Canceled ? null : result.Data as int?;
+    }
+
+    private async Task HandleFailureAsync(string? message)
+    {
+        var resolvedMessage = string.IsNullOrWhiteSpace(message)
+            ? "No fue posible completar la operacion."
+            : message;
+
+        if (IsUnauthorizedMessage(resolvedMessage))
+        {
+            await AuthService.LogoutAsync();
+            Snackbar.Add("Tu sesion termino. Inicia sesion nuevamente.", Severity.Warning);
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        _errorMessage = resolvedMessage;
+        Snackbar.Add(resolvedMessage, Severity.Error);
+    }
+
+    private static bool IsActive(string? status) => string.Equals(status, "A", StringComparison.OrdinalIgnoreCase);
+
+    private static string ResolveStatus(string? status) => IsActive(status) ? "Activo" : "Inactivo";
+
+    private static Color GetStatusColor(string? status) => IsActive(status) ? Color.Success : Color.Default;
+
+    private static string ResolveText(string? value, string fallback) => string.IsNullOrWhiteSpace(value) ? fallback : value;
+
+    private static string FormatMoney(decimal value) => value.ToString("C2", CultureInfo.GetCultureInfo("es-CO"));
+
+    private static bool IsUnauthorizedMessage(string? message) =>
+        !string.IsNullOrWhiteSpace(message)
+        && (message.StartsWith("Sesion expirada", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("Sesión expirada", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("No hay una sesion activa", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("No hay una sesión activa", StringComparison.OrdinalIgnoreCase));
+}

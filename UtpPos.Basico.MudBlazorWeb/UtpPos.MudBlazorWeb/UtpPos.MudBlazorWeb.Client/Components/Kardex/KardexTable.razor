@@ -1,0 +1,100 @@
+<section class="vp-card vp-table-card" aria-label="Movimientos Kardex">
+    <div class="vp-table-scroll">
+        <table class="vp-inventory-table vp-kardex-table">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Producto</th>
+                    <th>Negocio</th>
+                    <th>Tipo movimiento</th>
+                    <th>Operacion</th>
+                    <th>Cantidad</th>
+                    <th>Costo unitario</th>
+                    <th>Saldo anterior</th>
+                    <th>Saldo actual</th>
+                    <th>Costo pond. anterior</th>
+                    <th>Costo pond. actual</th>
+                    <th>Usuario</th>
+                    <th>Observacion</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var movement in Items)
+                {
+                    var operation = GetOperationType(movement);
+
+                    <tr>
+                        <td>
+                            @movement.CreatedAt.ToString("dd MMM yyyy")<br />
+                            <span class="vp-muted">@movement.CreatedAt.ToString("HH:mm")</span>
+                        </td>
+                        <td class="vp-product-cell">
+                            <strong>@movement.ProductName</strong>
+                            <span>Producto #@movement.ProductId</span>
+                            <span>Inventario #@movement.InventoryId</span>
+                        </td>
+                        <td>@ResolveBusiness(movement)</td>
+                        <td>@ResolveMovementType(movement)</td>
+                        <td><StatusChip Text="@operation" Type="@operation" /></td>
+                        <td class="@GetQuantityClass(operation)">@FormatSignedQuantity(movement)</td>
+                        <td>@movement.UnitCost.ToString("C2", CultureInfo.GetCultureInfo("es-CO"))</td>
+                        <td>@movement.PreviousBalance.ToString("N2")</td>
+                        <td><strong>@movement.CurrentBalance.ToString("N2")</strong></td>
+                        <td>@movement.PreviousWeightedAverageCost.ToString("C2", CultureInfo.GetCultureInfo("es-CO"))</td>
+                        <td>@movement.CurrentWeightedAverageCost.ToString("C2", CultureInfo.GetCultureInfo("es-CO"))</td>
+                        <td>@ResolveUser(movement)</td>
+                        <td class="vp-kardex-observation">@ResolveObservation(movement)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <footer class="vp-table-footer">
+        <span>Mostrando @Items.Count.ToString("N0") movimientos</span>
+        <span>Trazabilidad historica desde Kardex</span>
+    </footer>
+</section>
+
+@code {
+    [Parameter] public IReadOnlyList<KardexDto> Items { get; set; } = Array.Empty<KardexDto>();
+
+    private static string ResolveBusiness(KardexDto movement) =>
+        string.IsNullOrWhiteSpace(movement.BusinessName) ? $"Negocio #{movement.BusinessId}" : movement.BusinessName;
+
+    private static string ResolveMovementType(KardexDto movement) =>
+        string.IsNullOrWhiteSpace(movement.MovementTypeName) ? $"Tipo #{movement.MovementTypeId}" : movement.MovementTypeName;
+
+    private static string ResolveUser(KardexDto movement) =>
+        string.IsNullOrWhiteSpace(movement.CreatedByUserName) ? $"Usuario #{movement.CreatedByUserId}" : movement.CreatedByUserName;
+
+    private static string ResolveObservation(KardexDto movement) =>
+        string.IsNullOrWhiteSpace(movement.Observation) ? "Sin observacion" : movement.Observation;
+
+    private static string GetOperationType(KardexDto movement)
+    {
+        if (movement.InputQuantity > 0 && movement.OutputQuantity <= 0)
+        {
+            return "Entrada";
+        }
+
+        if (movement.OutputQuantity > 0 && movement.InputQuantity <= 0)
+        {
+            return "Salida";
+        }
+
+        return "Ajuste";
+    }
+
+    private static string GetQuantityClass(string operation) => operation switch
+    {
+        "Entrada" => "vp-quantity-positive",
+        "Salida" => "vp-quantity-negative",
+        _ => "vp-quantity-adjust"
+    };
+
+    private static string FormatSignedQuantity(KardexDto movement)
+    {
+        var quantity = movement.InputQuantity - movement.OutputQuantity;
+        return quantity > 0 ? $"+{quantity:N2}" : quantity.ToString("N2");
+    }
+}

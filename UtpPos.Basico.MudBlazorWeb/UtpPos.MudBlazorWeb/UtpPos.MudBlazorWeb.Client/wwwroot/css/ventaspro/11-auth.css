@@ -1,0 +1,227 @@
+/* VentasPro - Authentication
+   Login shell, brand panel, form card and authentication controls.
+*/
+.vp-login-page {
+   min-height: 100vh;
+   padding: 18px;
+   background: radial-gradient(
+      circle at 80% 10%,
+      rgba(62,187,208,.16),
+      transparent 30%
+   ),
+   #f4f7fb;
+}
+
+.vp-login-shell {
+   display: grid;
+   grid-template-columns: minmax(380px, .92fr) minmax(500px, 1.08fr);
+   width: min(1180px, 100%);
+   min-height: calc(100vh - 36px);
+   margin: 0 auto;
+   overflow: hidden;
+   border: 1px solid rgba(221,229,240,.8);
+   border-radius: 22px;
+   background: #fff;
+   box-shadow: 0 24px 70px rgba(35,56,91,.13);
+}
+
+.vp-login-brand {
+   position: relative;
+   display: flex;
+   flex-direction: column;
+   justify-content: space-between;
+   min-height: 100%;
+   padding: clamp(38px, 5vw, 68px);
+   overflow: hidden;
+   color: #fff;
+   background: linear-gradient(145deg, #315ba8 0%, #3d67b6 52%, #2e8da4 100%);
+}
+
+.vp-login-brand::before,
+.vp-login-brand::after {
+   content: "";
+   position: absolute;
+   border: 1px solid rgba(255,255,255,.14);
+   border-radius: 50%;
+}
+
+.vp-login-brand::before {
+   width: 420px;
+   height: 420px;
+   right: -230px;
+   top: -145px;
+}
+
+.vp-login-brand::after {
+   width: 280px;
+   height: 280px;
+   left: -150px;
+   bottom: -120px;
+}
+
+.vp-login-brand-content {
+   position: relative;
+   z-index: 1;
+   max-width: 430px;
+   margin: auto 0;
+   padding: 52px 0;
+}
+
+.vp-login-eyebrow {
+   margin-bottom: 14px;
+   font-size: .7rem;
+   font-weight: 700;
+   letter-spacing: .14em;
+   opacity: .72;
+   text-transform: uppercase;
+}
+
+.vp-login-brand h1 {
+   max-width: 420px;
+   margin: 0;
+   font-size: clamp(2rem, 4vw, 3.15rem);
+   font-weight: 740;
+   line-height: 1.12;
+   letter-spacing: -.045em;
+}
+
+.vp-login-brand-lead {
+   max-width: 400px;
+   margin: 20px 0 28px;
+   font-size: .84rem;
+   line-height: 1.8;
+   opacity: .82;
+}
+
+.vp-login-features {
+   display: grid;
+   gap: 13px;
+}
+
+.vp-login-feature {
+   display: flex;
+   align-items: center;
+   gap: 11px;
+   font-size: .76rem;
+}
+
+.vp-login-feature-icon {
+   display: grid;
+   place-items: center;
+   width: 28px;
+   height: 28px;
+   border-radius: 9px;
+   color: #193d47;
+   background: var(--vp-primary);
+}
+
+.vp-login-footer {
+   position: relative;
+   z-index: 1;
+   font-size: .62rem;
+   opacity: .62;
+}
+
+.vp-login-form-side {
+   display: grid;
+   place-items: center;
+   padding: clamp(28px, 6vw, 76px);
+   background: linear-gradient(180deg, #fff, #fbfcff);
+}
+
+.vp-login-form-card {
+   width: min(420px, 100%);
+}
+
+.vp-login-mobile-logo {
+   display: none;
+   margin-bottom: 32px;
+}
+
+.vp-login-form-kicker {
+   color: var(--vp-primary-deep);
+   font-size: .67rem;
+   font-weight: 750;
+   letter-spacing: .12em;
+   text-transform: uppercase;
+}
+
+.vp-login-form-title {
+   margin: 9px 0 8px;
+   color: var(--vp-text);
+   font-size: clamp(1.65rem, 3vw, 2.15rem);
+   font-weight: 750;
+   letter-spacing: -.04em;
+}
+
+.vp-login-form-subtitle {
+   margin: 0 0 28px;
+   color: var(--vp-muted);
+   font-size: .76rem;
+   line-height: 1.6;
+}
+
+.vp-login-form-card .mud-input-control {
+   margin-top: 6px;
+}
+
+.vp-login-form-card .mud-input-outlined-border {
+   border-color: var(--vp-border) !important;
+}
+
+.vp-login-form-card .mud-input-root {
+   min-height: 42px;
+   border-radius: 11px;
+   background: #fbfcfe;
+}
+
+.vp-login-form-options {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   gap: 12px;
+   margin: 10px 0 22px;
+}
+
+.vp-login-check .mud-typography {
+   color: var(--vp-muted);
+   font-size: .68rem;
+}
+
+.vp-login-help {
+   color: var(--vp-accent);
+   font-size: .68rem;
+   font-weight: 600;
+   text-decoration: none;
+}
+
+.vp-login-button {
+   height: 50px;
+   border-radius: 11px !important;
+   color: #15343c !important;
+   font-weight: 700 !important;
+   box-shadow: 0 9px 22px rgba(62,187,208,.24);
+}
+
+.vp-login-access {
+   margin-top: 24px;
+   color: var(--vp-muted);
+   font-size: .68rem;
+   text-align: center;
+}
+
+.vp-login-access a {
+   color: var(--vp-accent);
+   font-weight: 700;
+   text-decoration: none;
+}
+
+.vp-login-security {
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   gap: 6px;
+   margin-top: 24px;
+   color: #98a5b6;
+   font-size: .6rem;
+}

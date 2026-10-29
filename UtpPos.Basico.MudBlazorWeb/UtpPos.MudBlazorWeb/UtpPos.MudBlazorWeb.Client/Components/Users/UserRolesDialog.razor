@@ -1,0 +1,228 @@
+@inject IRbacManagementService RbacManagementService
+@inject IAuthService AuthService
+@inject PermissionStateService PermissionState
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+@inject IDialogService DialogService
+
+<MudDialog>
+    <DialogContent>
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="mb-4">
+                @_errorMessage
+            </MudAlert>
+        }
+
+        <div class="vp-rbac-dialog-head">
+            <div>
+                <MudText Typo="Typo.subtitle2">@User.Name</MudText>
+                <MudText Typo="Typo.body2" Class="vp-muted">@User.Email</MudText>
+            </div>
+        </div>
+
+        <div class="vp-rbac-inline-form">
+            <MudSelect T="int?"
+                       Label="Asignar rol"
+                       @bind-Value="_selectedRoleId"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Disabled="@(_loading || !PermissionState.HasPermission("usuarios.actualizar"))">
+                @foreach (var role in _roles)
+                {
+                    <MudSelectItem T="int?" Value="@role.Id">
+                        @role.Name
+                    </MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       Disabled="@(_loading || !_selectedRoleId.HasValue || !PermissionState.HasPermission("usuarios.actualizar"))"
+                       OnClick="AssignRoleAsync">
+                Asignar
+            </MudButton>
+        </div>
+
+        @if (_loading)
+        {
+            <div class="vp-rbac-loading">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+                <MudText Typo="Typo.body2" Class="vp-muted">Consultando roles del usuario...</MudText>
+            </div>
+        }
+        else if (_assignments.Count == 0)
+        {
+            <EmptyState Icon="@Icons.Material.Outlined.AdminPanelSettings"
+                        Title="Sin roles asignados"
+                        Message="Este usuario aun no tiene roles activos." />
+        }
+        else
+        {
+            <section class="vp-card vp-rbac-table-card vp-rbac-table-card--compact">
+                <MudTable T="RbacUserRoleDto" Items="@_assignments" Dense="true" Hover="true" Elevation="0">
+                    <HeaderContent>
+                        <MudTh>Rol</MudTh>
+                        <MudTh>Alcance</MudTh>
+                        <MudTh>Indicadores</MudTh>
+                        <MudTh Class="vp-rbac-actions-heading">Acciones</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Rol">
+                            <div class="vp-rbac-user-cell">
+                                <strong>@context.RoleName</strong>
+                                <span>@(string.IsNullOrWhiteSpace(context.RoleDescription) ? "Sin descripcion" : context.RoleDescription)</span>
+                            </div>
+                        </MudTd>
+                        <MudTd DataLabel="Alcance">@(context.BusinessName ?? "Global")</MudTd>
+                        <MudTd DataLabel="Indicadores">
+                            <div class="vp-rbac-chip-row">
+                                @if (context.RoleIsSystem == "S")
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary">Sistema</MudChip>
+                                }
+                                @if (context.RoleFullAccess == "S")
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary">Acceso total</MudChip>
+                                }
+                            </div>
+                        </MudTd>
+                        <MudTd DataLabel="Acciones">
+                            @if (PermissionState.HasPermission("usuarios.actualizar"))
+                            {
+                                <MudTooltip Text="Revocar rol">
+                                    <MudIconButton Icon="@Icons.Material.Outlined.LinkOff"
+                                                   Size="Size.Small"
+                                                   Color="Color.Error"
+                                                   OnClick="@(() => RevokeRoleAsync(context))" />
+                                </MudTooltip>
+                            }
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </section>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public UserDto User { get; set; } = new();
+
+    private IReadOnlyList<RbacRoleDto> _roles = Array.Empty<RbacRoleDto>();
+    private IReadOnlyList<RbacUserRoleDto> _assignments = Array.Empty<RbacUserRoleDto>();
+    private int? _selectedRoleId;
+    private bool _loading;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var rolesTask = RbacManagementService.ListRolesAsync(new RbacRoleFilterDto { Status = "A" });
+            var assignmentsTask = RbacManagementService.ListUserRolesAsync(User.Id);
+
+            await Task.WhenAll(rolesTask, assignmentsTask);
+
+            var rolesResponse = await rolesTask;
+            var assignmentsResponse = await assignmentsTask;
+
+            if (!rolesResponse.IsSuccess)
+            {
+                await HandleFailureAsync(rolesResponse.Message);
+                return;
+            }
+
+            if (!assignmentsResponse.IsSuccess)
+            {
+                await HandleFailureAsync(assignmentsResponse.Message);
+                return;
+            }
+
+            _roles = rolesResponse.Data ?? Array.Empty<RbacRoleDto>();
+            _assignments = assignmentsResponse.Data ?? Array.Empty<RbacUserRoleDto>();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task AssignRoleAsync()
+    {
+        if (!_selectedRoleId.HasValue)
+        {
+            return;
+        }
+
+        var response = await RbacManagementService.AssignRoleToUserAsync(User.Id, _selectedRoleId.Value);
+        if (!response.IsSuccess)
+        {
+            await HandleFailureAsync(response.Message);
+            return;
+        }
+
+        Snackbar.Add(response.Message, Severity.Success);
+        _selectedRoleId = null;
+        await LoadAsync();
+    }
+
+    private async Task RevokeRoleAsync(RbacUserRoleDto assignment)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Revocar rol",
+            $"Deseas revocar el rol {assignment.RoleName}?",
+            yesText: "Revocar",
+            noText: null,
+            cancelText: "Cancelar");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        var response = await RbacManagementService.RevokeRoleFromUserAsync(User.Id, assignment.RoleId);
+        if (!response.IsSuccess)
+        {
+            await HandleFailureAsync(response.Message);
+            return;
+        }
+
+        Snackbar.Add(response.Message, Severity.Success);
+        await LoadAsync();
+    }
+
+    private void Close() => Dialog.Close();
+
+    private async Task HandleFailureAsync(string? message)
+    {
+        var resolvedMessage = string.IsNullOrWhiteSpace(message)
+            ? "No fue posible completar la operacion."
+            : message;
+
+        if (resolvedMessage.StartsWith("Sesion expirada", StringComparison.OrdinalIgnoreCase)
+            || resolvedMessage.StartsWith("No hay una sesion activa", StringComparison.OrdinalIgnoreCase)
+            || resolvedMessage.StartsWith("Sesi", StringComparison.OrdinalIgnoreCase))
+        {
+            await AuthService.LogoutAsync();
+            Dialog.Cancel();
+            Snackbar.Add("Tu sesion termino. Inicia sesion nuevamente.", Severity.Warning);
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        _errorMessage = resolvedMessage;
+        Snackbar.Add(resolvedMessage, Severity.Error);
+    }
+}

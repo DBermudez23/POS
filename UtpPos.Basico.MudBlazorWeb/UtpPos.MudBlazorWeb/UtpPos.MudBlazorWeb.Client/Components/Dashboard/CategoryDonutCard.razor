@@ -1,0 +1,68 @@
+<article class="vp-card vp-panel-card">
+    <header class="vp-panel-head">
+        <div>
+            <h3>Ventas por categoría</h3>
+            <p>Participación del mes actual</p>
+        </div>
+        <a class="vp-panel-link" href="#categorias">Ver detalle</a>
+    </header>
+
+    @if (Items.Count == 0)
+    {
+        <div class="vp-inline-empty">No hay ventas por categoría en el periodo seleccionado.</div>
+    }
+    else
+    {
+        <div class="vp-donut-wrap">
+            <div class="vp-donut" style="@DonutStyle" role="img" aria-label="@DonutLabel">
+                <div class="vp-donut-center">
+                    <strong>@FormatCurrency(Items.Sum(item => item.Total))</strong>
+                    <span>ventas</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="vp-legend">
+            @foreach (var item in Items.Take(4).Select((value, index) => new { value, index }))
+            {
+                <div class="vp-legend-item">
+                    <span class="vp-legend-dot" style="background:@Colors[item.index]"></span>
+                    @item.value.CategoryName · @item.value.Percentage.ToString("N1", ColombianCulture)%
+                </div>
+            }
+        </div>
+    }
+</article>
+
+@code {
+    private static readonly CultureInfo ColombianCulture = CultureInfo.GetCultureInfo("es-CO");
+    private static readonly string[] Colors = ["#3EBBD0", "#3D67B6", "#F0AA43", "#DBE4F0"];
+
+    [Parameter] public IReadOnlyList<DashboardSalesByCategoryItemDto> Items { get; set; } = Array.Empty<DashboardSalesByCategoryItemDto>();
+
+    private string DonutLabel => string.Join(", ", Items.Take(4)
+        .Select(item => $"{item.CategoryName} {item.Percentage.ToString("N1", ColombianCulture)}%"));
+
+    private string DonutStyle => $"background:{BuildConicGradient()};";
+
+    private string BuildConicGradient()
+    {
+        var topItems = Items.Take(4).ToArray();
+        if (topItems.Length == 0)
+            return "#DBE4F0";
+
+        decimal start = 0;
+        var segments = new List<string>();
+
+        for (var index = 0; index < topItems.Length; index++)
+        {
+            var end = index == topItems.Length - 1 ? 100 : Math.Min(100, start + topItems[index].Percentage);
+            segments.Add($"{Colors[index]} {start.ToString("N2", CultureInfo.InvariantCulture)}% {end.ToString("N2", CultureInfo.InvariantCulture)}%");
+            start = end;
+        }
+
+        return $"conic-gradient({string.Join(", ", segments)})";
+    }
+
+    private static string FormatCurrency(decimal value) => value.ToString("C0", ColombianCulture);
+}
